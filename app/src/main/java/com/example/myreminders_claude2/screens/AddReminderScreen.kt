@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.myreminders_claude2.data.CategoryDefaults
 import com.example.myreminders_claude2.data.RecurrenceType
+import com.example.myreminders_claude2.utils.CategoryManager
 import com.example.myreminders_claude2.viewmodel.ReminderViewModel
 import com.example.myreminders_claude2.utils.TextFormatter
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -38,6 +39,10 @@ fun AddReminderScreen(
     prefilledRecurrenceInterval: Int = 1,
     prefilledRecurrenceDayOfWeek: Int? = null
 ) {
+    val context = LocalContext.current
+    val categoryManager = remember { CategoryManager(context) }
+    val allCategories = categoryManager.getAllCategories()
+
     var reminderText by remember { mutableStateOf(prefilledTitle) }
     var notes by remember { mutableStateOf(prefilledNotes) }
     var selectedDateTime by remember { mutableStateOf(prefilledDateTime) }
@@ -65,7 +70,6 @@ fun AddReminderScreen(
     var recurrenceInterval by remember { mutableStateOf(prefilledRecurrenceInterval) }
     var showRecurrenceMenu by remember { mutableStateOf(false) }
 
-    val context = LocalContext.current
     val dateFormat = SimpleDateFormat("EEE, MMM dd yyyy 'at' hh:mm a", Locale.getDefault())
 
     // Get type options based on main category
@@ -145,34 +149,16 @@ fun AddReminderScreen(
                     expanded = showMainCategoryMenu,
                     onDismissRequest = { showMainCategoryMenu = false }
                 ) {
-                    DropdownMenuItem(
-                        text = { Text("💼 Work") },
-                        onClick = {
-                            mainCategory = CategoryDefaults.WORK
-                            showMainCategoryMenu = false
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("🏠 Personal") },
-                        onClick = {
-                            mainCategory = CategoryDefaults.PERSONAL
-                            showMainCategoryMenu = false
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("❤️ Health") },
-                        onClick = {
-                            mainCategory = CategoryDefaults.HEALTH
-                            showMainCategoryMenu = false
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("💰 Finance") },
-                        onClick = {
-                            mainCategory = CategoryDefaults.FINANCE
-                            showMainCategoryMenu = false
-                        }
-                    )
+                    // Show all categories (default + custom)
+                    allCategories.forEach { (category, emoji) ->
+                        DropdownMenuItem(
+                            text = { Text("$emoji $category") },
+                            onClick = {
+                                mainCategory = category
+                                showMainCategoryMenu = false
+                            }
+                        )
+                    }
                 }
             }
 

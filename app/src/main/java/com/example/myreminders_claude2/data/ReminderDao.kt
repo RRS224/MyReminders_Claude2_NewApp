@@ -81,4 +81,12 @@ interface ReminderDao {
     // NEW: Check if a recurring group has any active instances
     @Query("SELECT COUNT(*) FROM reminders WHERE recurringGroupId = :groupId AND isCompleted = 0")
     suspend fun getActiveCountInRecurringGroup(groupId: String): Int
+
+    // ===== CATEGORY MANAGEMENT METHODS =====
+
+    @Query("SELECT COUNT(*) FROM reminders WHERE mainCategory = :category AND isCompleted = 0")
+    suspend fun getRemindersCountByCategory(category: String): Int
+
+    @Query("UPDATE reminders SET mainCategory = :newCategory WHERE mainCategory = :oldCategory")
+    suspend fun updateCategoryForAllReminders(oldCategory: String, newCategory: String)
 }

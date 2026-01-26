@@ -377,4 +377,20 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
             onComplete()
         }
     }
+
+    // ===== CATEGORY MANAGEMENT METHODS =====
+
+    /**
+     * Get count of reminders using a specific category
+     */
+    suspend fun getRemindersCountByCategory(category: String): Int {
+        return repository.getRemindersCountByCategory(category)
+    }
+
+    /**
+     * Update category for all reminders using oldCategory
+     */
+    suspend fun updateCategoryForAllReminders(oldCategory: String, newCategory: String) {
+        repository.updateCategoryForAllReminders(oldCategory, newCategory)
+    }
 }

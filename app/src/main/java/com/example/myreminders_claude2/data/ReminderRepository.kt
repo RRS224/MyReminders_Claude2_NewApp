@@ -159,4 +159,14 @@ class ReminderRepository(
 
     // Get custom categories
     val customCategories: Flow<List<Category>> = categoryDao.getCustomCategories()
+
+    // ===== CATEGORY MANAGEMENT METHODS =====
+
+    suspend fun getRemindersCountByCategory(category: String): Int {
+        return reminderDao.getRemindersCountByCategory(category)
+    }
+
+    suspend fun updateCategoryForAllReminders(oldCategory: String, newCategory: String) {
+        reminderDao.updateCategoryForAllReminders(oldCategory, newCategory)
+    }
 }

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
@@ -39,20 +40,25 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.myreminders_claude2.data.Reminder
 import com.example.myreminders_claude2.screens.AddReminderScreen
+import com.example.myreminders_claude2.screens.CreateReminderTab
 import com.example.myreminders_claude2.screens.EditReminderScreen
+import com.example.myreminders_claude2.screens.ManageCategoriesScreen
 import com.example.myreminders_claude2.screens.PermissionOnboardingScreen
 import com.example.myreminders_claude2.screens.ReminderAlarmScreen
 import com.example.myreminders_claude2.screens.VoiceInputScreen
+import com.example.myreminders_claude2.screens.SettingsScreen
 import com.example.myreminders_claude2.ui.theme.MyRemindersTheme
 import com.example.myreminders_claude2.utils.PermissionChecker
 import com.example.myreminders_claude2.utils.PreferencesManager
 import com.example.myreminders_claude2.utils.VoiceParser
+import com.example.myreminders_claude2.utils.ThemePreferences
 import com.example.myreminders_claude2.viewmodel.ReminderViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 import android.content.Context
 import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
 
 class MainActivity : ComponentActivity() {
     private val viewModel: ReminderViewModel by viewModels()
@@ -64,14 +70,36 @@ class MainActivity : ComponentActivity() {
         val reminderId = intent.getLongExtra("REMINDER_ID", -1)
 
         setContent {
-            MyRemindersTheme {
+            val context = LocalContext.current
+            val themePrefs = remember { ThemePreferences(context) }
+            var themeVersion by remember { mutableStateOf(0) }
+            val systemInDarkTheme = isSystemInDarkTheme()
+
+            val darkTheme = when {
+                themePrefs.autoDarkEnabled -> themePrefs.shouldUseDarkMode()
+                themePrefs.themeMode == ThemePreferences.THEME_DARK -> true
+                themePrefs.themeMode == ThemePreferences.THEME_LIGHT -> false
+                else -> systemInDarkTheme
+            }
+
+            // Force recomposition when themeVersion changes
+            LaunchedEffect(themeVersion) {
+                // This block re-triggers when themeVersion changes
+            }
+
+            MyRemindersTheme(
+                darkTheme = darkTheme,
+                useAmoledBlack = themePrefs.useAmoledBlack,
+                useDynamicColor = themePrefs.useDynamicColors
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     MyRemindersApp(
                         viewModel = viewModel,
-                        initialReminderId = if (reminderId != -1L) reminderId else null
+                        initialReminderId = if (reminderId != -1L) reminderId else null,
+                        onThemeChanged = { themeVersion++ }
                     )
                 }
             }
@@ -82,7 +110,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MyRemindersApp(
     viewModel: ReminderViewModel,
-    initialReminderId: Long? = null
+    initialReminderId: Long? = null,
+    onThemeChanged: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefsManager = remember { PreferencesManager(context) }
@@ -105,7 +134,8 @@ fun MyRemindersApp(
         MainNavigation(
             viewModel = viewModel,
             prefsManager = prefsManager,
-            initialReminderId = initialReminderId
+            initialReminderId = initialReminderId,
+            onThemeChanged = onThemeChanged
         )
     }
 }
@@ -114,7 +144,8 @@ fun MyRemindersApp(
 fun MainNavigation(
     viewModel: ReminderViewModel,
     prefsManager: PreferencesManager,
-    initialReminderId: Long?
+    initialReminderId: Long?,
+    onThemeChanged: () -> Unit
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
@@ -136,6 +167,7 @@ fun MainNavigation(
                 onNavigateToAdd = { navController.navigate("add") },
                 onNavigateToVoiceInput = { navController.navigate("voiceInput") },
                 onNavigateToPermissions = { navController.navigate("permissions") },
+                onNavigateToSettings = { navController.navigate("settings") },
                 onNavigateToEdit = { reminderId ->
                     navController.navigate("edit/$reminderId")
                 },
@@ -158,8 +190,10 @@ fun MainNavigation(
                     if (parsed != null) {
                         val encodedTitle = java.net.URLEncoder.encode(parsed.title, "UTF-8")
                         val encodedNotes = java.net.URLEncoder.encode(parsed.notes, "UTF-8")
-                        val encodedCategory = java.net.URLEncoder.encode(parsed.mainCategory, "UTF-8")
-                        val encodedSubCategory = java.net.URLEncoder.encode(parsed.subCategory ?: "", "UTF-8")
+                        val encodedCategory =
+                            java.net.URLEncoder.encode(parsed.mainCategory, "UTF-8")
+                        val encodedSubCategory =
+                            java.net.URLEncoder.encode(parsed.subCategory ?: "", "UTF-8")
                         navController.navigate(
                             "add?title=$encodedTitle&notes=$encodedNotes&dateTime=${parsed.dateTime}" +
                                     "&category=$encodedCategory&subCategory=$encodedSubCategory" +
@@ -219,9 +253,11 @@ fun MainNavigation(
             val dateTime = backStackEntry.arguments?.getLong("dateTime") ?: 0L
             val encodedCategory = backStackEntry.arguments?.getString("category") ?: "GENERAL"
             val encodedSubCategory = backStackEntry.arguments?.getString("subCategory") ?: ""
-            val recurrenceType = backStackEntry.arguments?.getString("recurrenceType") ?: "ONE_TIME"
+            val recurrenceType =
+                backStackEntry.arguments?.getString("recurrenceType") ?: "ONE_TIME"
             val recurrenceInterval = backStackEntry.arguments?.getInt("recurrenceInterval") ?: 1
-            val recurrenceDayOfWeek = backStackEntry.arguments?.getInt("recurrenceDayOfWeek") ?: -1
+            val recurrenceDayOfWeek =
+                backStackEntry.arguments?.getInt("recurrenceDayOfWeek") ?: -1
 
             val title = try {
                 java.net.URLDecoder.decode(encodedTitle, "UTF-8")
@@ -325,6 +361,19 @@ fun MainNavigation(
                 onSkip = { navController.popBackStack() }
             )
         }
+        composable("settings") {
+            SettingsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onThemeChanged = onThemeChanged,
+                onNavigateToManageCategories = { navController.navigate("manageCategories") }
+            )
+        }
+        composable("manageCategories") {
+            ManageCategoriesScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
         composable(
             route = "alarm/{reminderId}",
             arguments = listOf(navArgument("reminderId") { type = NavType.LongType })
@@ -339,7 +388,8 @@ fun MainNavigation(
                     context,
                     com.example.myreminders_claude2.alarm.AlarmService::class.java
                 ).apply {
-                    action = com.example.myreminders_claude2.alarm.AlarmService.ACTION_STOP_ALARM
+                    action =
+                        com.example.myreminders_claude2.alarm.AlarmService.ACTION_STOP_ALARM
                 }
                 context.startService(stopIntent)
             }
@@ -358,6 +408,7 @@ fun MainNavigation(
                         CircularProgressIndicator()
                     }
                 }
+
                 reminder != null -> {
                     ReminderAlarmScreen(
                         reminderId = reminder!!.id,
@@ -379,6 +430,7 @@ fun MainNavigation(
                         }
                     )
                 }
+
                 else -> {
                     LaunchedEffect(Unit) {
                         navController.popBackStack()
@@ -396,13 +448,15 @@ fun HomeScreen(
     onNavigateToAdd: () -> Unit,
     onNavigateToVoiceInput: () -> Unit,
     onNavigateToPermissions: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     onNavigateToEdit: (Long) -> Unit,
     onNavigateToReuse: (Long) -> Unit
 ) {
     val context = LocalContext.current
     val activeReminders by viewModel.allActiveReminders.collectAsState(initial = emptyList())
     val completedReminders by viewModel.completedReminders.collectAsState(initial = emptyList())
-    val permissionStatus = remember { mutableStateOf(PermissionChecker.checkAllPermissions(context)) }
+    val permissionStatus =
+        remember { mutableStateOf(PermissionChecker.checkAllPermissions(context)) }
     var showMenu by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
@@ -425,7 +479,16 @@ fun HomeScreen(
                         )
                     },
                     actions = {
-                        if (selectedTab == 1 && completedReminders.isNotEmpty()) {
+                        // Settings Icon (direct access)
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings"
+                            )
+                        }
+
+                        // Clear All button (only on Completed tab)
+                        if (selectedTab == 2 && completedReminders.isNotEmpty()) {
                             IconButton(onClick = {
                                 scope.launch {
                                     viewModel.clearAllCompleted()
@@ -439,6 +502,7 @@ fun HomeScreen(
                             }
                         }
 
+                        // Overflow Menu
                         IconButton(onClick = { showMenu = true }) {
                             Icon(
                                 imageVector = Icons.Default.MoreVert,
@@ -501,7 +565,7 @@ fun HomeScreen(
                         onClick = { selectedTab = 0 },
                         text = {
                             Text(
-                                "Active (${activeReminders.size})",
+                                "Create",
                                 fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
                             )
                         }
@@ -511,52 +575,21 @@ fun HomeScreen(
                         onClick = { selectedTab = 1 },
                         text = {
                             Text(
-                                "Completed (${completedReminders.size})",
+                                "Active (${activeReminders.size})",
                                 fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
                             )
                         }
                     )
-                }
-            }
-        },
-        floatingActionButton = {
-            if (selectedTab == 0) {
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    FloatingActionButton(
-                        onClick = onNavigateToVoiceInput,
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.size(56.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Mic,
-                            contentDescription = "Voice Input",
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    FloatingActionButton(
-                        onClick = onNavigateToAdd,
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier
-                            .size(72.dp)
-                            .shadow(
-                                elevation = 8.dp,
-                                shape = CircleShape,
-                                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                            ),
-                        shape = CircleShape
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add Reminder",
-                            modifier = Modifier.size(36.dp)
-                        )
-                    }
+                    Tab(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        text = {
+                            Text(
+                                "Completed (${completedReminders.size})",
+                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    )
                 }
             }
         },
@@ -567,7 +600,7 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (permissionStatus.value.hasAnyMissing && selectedTab == 0) {
+            if (permissionStatus.value.hasAnyMissing && selectedTab == 1) {
                 PermissionWarningBanner(
                     onFixClick = onNavigateToPermissions
                 )
@@ -587,6 +620,15 @@ fun HomeScreen(
             ) {
                 when (selectedTab) {
                     0 -> {
+                        // Create Tab
+                        CreateReminderTab(
+                            onNavigateToManual = onNavigateToAdd,
+                            onNavigateToVoice = onNavigateToVoiceInput,
+                            onNavigateToTemplates = { /* Coming next week! */ }
+                        )
+                    }
+                    1 -> {
+                        // Active Tab
                         if (activeReminders.isEmpty()) {
                             EmptyState(isCompleted = false)
                         } else {
@@ -597,7 +639,8 @@ fun HomeScreen(
                             )
                         }
                     }
-                    1 -> {
+                    2 -> {
+                        // Completed Tab
                         if (completedReminders.isEmpty()) {
                             EmptyState(isCompleted = true)
                         } else {
@@ -613,7 +656,6 @@ fun HomeScreen(
         }
     }
 }
-
 @Composable
 fun PermissionWarningBanner(
     onFixClick: () -> Unit
@@ -715,7 +757,7 @@ fun EmptyState(isCompleted: Boolean) {
             text = if (isCompleted)
                 "Dismissed reminders will appear here"
             else
-                "Tap the + button below to create\nyour first reminder",
+                "Go to the Create tab to add\nyour first reminder",
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontSize = 16.sp,
                 lineHeight = 24.sp
@@ -789,7 +831,8 @@ fun ActiveReminderCard(
     val context = LocalContext.current
     val vibrator = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+            val vibratorManager =
+                context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
             vibratorManager.defaultVibrator
         } else {
             @Suppress("DEPRECATION")
@@ -800,7 +843,12 @@ fun ActiveReminderCard(
     LaunchedEffect(dismissState.progress) {
         if (dismissState.progress > 0.3f) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(android.os.VibrationEffect.createOneShot(10, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator.vibrate(
+                    android.os.VibrationEffect.createOneShot(
+                        10,
+                        android.os.VibrationEffect.DEFAULT_AMPLITUDE
+                    )
+                )
             } else {
                 @Suppress("DEPRECATION")
                 vibrator.vibrate(10)
@@ -988,7 +1036,8 @@ fun CompletedReminderCard(
     val context = LocalContext.current
     val vibrator = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+            val vibratorManager =
+                context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
             vibratorManager.defaultVibrator
         } else {
             @Suppress("DEPRECATION")
@@ -999,7 +1048,12 @@ fun CompletedReminderCard(
     LaunchedEffect(dismissState.progress) {
         if (dismissState.progress > 0.3f) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(android.os.VibrationEffect.createOneShot(10, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator.vibrate(
+                    android.os.VibrationEffect.createOneShot(
+                        10,
+                        android.os.VibrationEffect.DEFAULT_AMPLITUDE
+                    )
+                )
             } else {
                 @Suppress("DEPRECATION")
                 vibrator.vibrate(10)
@@ -1102,7 +1156,9 @@ fun CompletedReminderCard(
                     recurrenceBadge?.let { badge ->
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(
+                                    alpha = 0.6f
+                                )
                             ),
                             shape = RoundedCornerShape(8.dp)
                         ) {
