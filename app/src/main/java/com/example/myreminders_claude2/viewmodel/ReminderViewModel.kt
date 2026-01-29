@@ -14,19 +14,32 @@ import java.util.*
 class ReminderViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = ReminderDatabase.getDatabase(application)
-    private val repository = ReminderRepository(database.reminderDao(), database.categoryDao())
+    private val reminderRepository = ReminderRepository(database.reminderDao(), database.categoryDao())
+    private val templateRepository = TemplateRepository(database.templateDao())
     private val alarmScheduler = AlarmScheduler(application)
+
+    init {
+        // Auto-purge deleted reminders on app start
+        autoPurgeDeleted()
+    }
 
     // ===== REMINDER FLOWS =====
 
-    val allActiveReminders: Flow<List<Reminder>> = repository.allActiveReminders
-    val completedReminders: Flow<List<Reminder>> = repository.completedReminders
+    val allActiveReminders: Flow<List<Reminder>> = reminderRepository.allActiveReminders
+    val completedReminders: Flow<List<Reminder>> = reminderRepository.completedReminders
+    val deletedReminders: Flow<List<Reminder>> = reminderRepository.deletedReminders
 
     // ===== CATEGORY FLOWS =====
 
-    val allCategories: Flow<List<Category>> = repository.allCategories
-    val mainCategories: Flow<List<Category>> = repository.mainCategories
-    val customCategories: Flow<List<Category>> = repository.customCategories
+    val allCategories: Flow<List<Category>> = reminderRepository.allCategories
+    val mainCategories: Flow<List<Category>> = reminderRepository.mainCategories
+    val customCategories: Flow<List<Category>> = reminderRepository.customCategories
+
+    // ===== TEMPLATE FLOWS =====
+
+    val allTemplates: Flow<List<Template>> = templateRepository.allTemplates
+    val mostUsedTemplates: Flow<List<Template>> = templateRepository.mostUsedTemplates
+    val recentlyUsedTemplates: Flow<List<Template>> = templateRepository.recentlyUsedTemplates
 
     // ===== REMINDER METHODS =====
 
@@ -61,7 +74,7 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
                 subCategory = subCategory
             )
 
-            val id = repository.insertReminder(reminder)
+            val id = reminderRepository.insertReminder(reminder)
             val savedReminder = reminder.copy(id = id)
             alarmScheduler.scheduleAlarm(savedReminder)
         }
@@ -76,7 +89,7 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         subCategory: String? = null
     ) {
         viewModelScope.launch {
-            val existing = repository.getReminderById(id)
+            val existing = reminderRepository.getReminderById(id)
             existing?.let { reminder ->
                 // Cancel old alarm
                 alarmScheduler.cancelAlarm(reminder.id)
@@ -84,7 +97,7 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
                 // Check if this is part of a recurring group
                 if (reminder.recurringGroupId != null) {
                     // Update all future reminders in the group
-                    repository.updateFutureRemindersInGroup(
+                    reminderRepository.updateFutureRemindersInGroup(
                         groupId = reminder.recurringGroupId,
                         currentTime = System.currentTimeMillis(),
                         title = title,
@@ -102,7 +115,7 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
                     mainCategory = mainCategory,
                     subCategory = subCategory
                 )
-                repository.updateReminder(updated)
+                reminderRepository.updateReminder(updated)
 
                 // Schedule new alarm
                 alarmScheduler.scheduleAlarm(updated)
@@ -113,7 +126,10 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
     fun deleteReminder(reminder: Reminder) {
         viewModelScope.launch {
             alarmScheduler.cancelAlarm(reminder.id)
-            repository.deleteReminder(reminder)
+            reminderRepository.softDeleteReminder(reminder.id)
+
+            // Auto-purge old/excess deleted reminders
+            reminderRepository.autoPurgeDeleted()
         }
     }
 
@@ -123,8 +139,8 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
     ) {
         viewModelScope.launch {
             if (deleteAllFuture && reminder.recurringGroupId != null) {
-                // Delete all future reminders in the group
-                val futureReminders = repository.getFutureRemindersInGroup(
+                // Soft delete all future reminders in the group
+                val futureReminders = reminderRepository.getFutureRemindersInGroup(
                     reminder.recurringGroupId,
                     System.currentTimeMillis()
                 )
@@ -132,33 +148,30 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
                 futureReminders.forEach { futureReminder ->
                     alarmScheduler.cancelAlarm(futureReminder.id)
                 }
-
-                repository.deleteFutureRemindersInGroup(
-                    reminder.recurringGroupId,
-                    System.currentTimeMillis(),
-                    reminder.id
-                )
             }
 
-            // Delete this reminder
+            // Soft delete this reminder (and all future if requested)
             alarmScheduler.cancelAlarm(reminder.id)
-            repository.deleteReminder(reminder)
+            reminderRepository.softDeleteReminderWithRecurrenceCheck(reminder, deleteAllFuture)
+
+            // Auto-purge old/excess deleted reminders
+            reminderRepository.autoPurgeDeleted()
         }
     }
 
     suspend fun getReminderById(id: Long): Reminder? {
-        return repository.getReminderById(id)
+        return reminderRepository.getReminderById(id)
     }
 
     fun markAsCompleted(id: Long, isCompleted: Boolean, reason: String) {
         viewModelScope.launch {
-            val reminder = repository.getReminderById(id)
+            val reminder = reminderRepository.getReminderById(id)
             reminder?.let {
                 // Cancel the alarm
                 alarmScheduler.cancelAlarm(it.id)
 
                 // Mark as completed
-                repository.markAsCompleted(id, isCompleted, System.currentTimeMillis(), reason)
+                reminderRepository.markAsCompleted(id, isCompleted, System.currentTimeMillis(), reason)
 
                 // If it's a recurring reminder, create the next occurrence
                 if (it.recurrenceType != RecurrenceType.ONE_TIME && it.recurringGroupId != null) {
@@ -170,7 +183,7 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
 
     fun snoozeReminder(id: Long) {
         viewModelScope.launch {
-            val reminder = repository.getReminderById(id)
+            val reminder = reminderRepository.getReminderById(id)
             reminder?.let {
                 val newSnoozeCount = it.snoozeCount + 1
 
@@ -179,12 +192,12 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
                     markAsCompleted(id, true, "AUTO_SNOOZED")
                 } else {
                     // Update snooze count
-                    repository.updateSnoozeCount(id, newSnoozeCount)
+                    reminderRepository.updateSnoozeCount(id, newSnoozeCount)
 
                     // Reschedule alarm for 5 minutes later
                     val newDateTime = it.dateTime + (5 * 60 * 1000)
                     val updated = it.copy(dateTime = newDateTime, snoozeCount = newSnoozeCount)
-                    repository.updateReminder(updated)
+                    reminderRepository.updateReminder(updated)
                     alarmScheduler.scheduleAlarm(updated)
                 }
             }
@@ -193,7 +206,7 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
 
     fun clearAllCompleted() {
         viewModelScope.launch {
-            repository.clearAllCompleted()
+            reminderRepository.clearAllCompleted()
         }
     }
 
@@ -217,7 +230,7 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
             snoozeCount = 0
         )
 
-        val newId = repository.insertReminder(nextReminder)
+        val newId = reminderRepository.insertReminder(nextReminder)
         val savedNextReminder = nextReminder.copy(id = newId)
         alarmScheduler.scheduleAlarm(savedNextReminder)
     }
@@ -266,34 +279,34 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
 
     // Get reminders by recurrence type
     fun getActiveRemindersByRecurrenceType(type: String): Flow<List<Reminder>> {
-        return repository.getActiveRemindersByRecurrenceType(type)
+        return reminderRepository.getActiveRemindersByRecurrenceType(type)
     }
 
     fun getCompletedRemindersByRecurrenceType(type: String): Flow<List<Reminder>> {
-        return repository.getCompletedRemindersByRecurrenceType(type)
+        return reminderRepository.getCompletedRemindersByRecurrenceType(type)
     }
 
     // Get reminders by category
     fun getActiveRemindersByCategory(category: String): Flow<List<Reminder>> {
-        return repository.getActiveRemindersByCategory(category)
+        return reminderRepository.getActiveRemindersByCategory(category)
     }
 
     fun getCompletedRemindersByCategory(category: String): Flow<List<Reminder>> {
-        return repository.getCompletedRemindersByCategory(category)
+        return reminderRepository.getCompletedRemindersByCategory(category)
     }
 
     // ===== CATEGORY METHODS =====
 
     fun getSubcategoriesForCategory(mainCategoryId: Long): Flow<List<Category>> {
-        return repository.getSubcategoriesForCategory(mainCategoryId)
+        return reminderRepository.getSubcategoriesForCategory(mainCategoryId)
     }
 
     suspend fun getCategoryById(categoryId: Long): Category? {
-        return repository.getCategoryById(categoryId)
+        return reminderRepository.getCategoryById(categoryId)
     }
 
     suspend fun getCategoryByName(name: String, isMain: Boolean): Category? {
-        return repository.getCategoryByName(name, isMain)
+        return reminderRepository.getCategoryByName(name, isMain)
     }
 
     fun addCategory(
@@ -312,13 +325,13 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
                 colorHex = colorHex,
                 iconName = iconName
             )
-            repository.insertCategory(category)
+            reminderRepository.insertCategory(category)
         }
     }
 
     fun updateCategory(category: Category) {
         viewModelScope.launch {
-            repository.updateCategory(category)
+            reminderRepository.updateCategory(category)
         }
     }
 
@@ -335,8 +348,8 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
 
             if (moveRemindersToUncategorized) {
                 // Move all reminders with this category to "PERSONAL" (uncategorized)
-                val activeRemindersWithCategory = repository.getActiveRemindersByCategory(category.name).first()
-                val completedRemindersWithCategory = repository.getCompletedRemindersByCategory(category.name).first()
+                val activeRemindersWithCategory = reminderRepository.getActiveRemindersByCategory(category.name).first()
+                val completedRemindersWithCategory = reminderRepository.getCompletedRemindersByCategory(category.name).first()
 
                 // Update active reminders
                 activeRemindersWithCategory.forEach { reminder ->
@@ -344,7 +357,7 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
                         mainCategory = CategoryDefaults.PERSONAL,
                         subCategory = null
                     )
-                    repository.updateReminder(updated)
+                    reminderRepository.updateReminder(updated)
                 }
 
                 // Update completed reminders
@@ -353,27 +366,27 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
                         mainCategory = CategoryDefaults.PERSONAL,
                         subCategory = null
                     )
-                    repository.updateReminder(updated)
+                    reminderRepository.updateReminder(updated)
                 }
             } else {
-                // Delete all reminders with this category
-                val activeRemindersWithCategory = repository.getActiveRemindersByCategory(category.name).first()
-                val completedRemindersWithCategory = repository.getCompletedRemindersByCategory(category.name).first()
+                // Delete all reminders with this category (SOFT DELETE)
+                val activeRemindersWithCategory = reminderRepository.getActiveRemindersByCategory(category.name).first()
+                val completedRemindersWithCategory = reminderRepository.getCompletedRemindersByCategory(category.name).first()
 
-                // Delete active reminders
+                // Soft delete active reminders
                 activeRemindersWithCategory.forEach { reminder ->
                     alarmScheduler.cancelAlarm(reminder.id)
-                    repository.deleteReminder(reminder)
+                    reminderRepository.softDeleteReminder(reminder.id)
                 }
 
-                // Delete completed reminders
+                // Soft delete completed reminders
                 completedRemindersWithCategory.forEach { reminder ->
-                    repository.deleteReminder(reminder)
+                    reminderRepository.softDeleteReminder(reminder.id)
                 }
             }
 
             // Delete the category
-            repository.deleteCategory(category)
+            reminderRepository.deleteCategory(category)
             onComplete()
         }
     }
@@ -384,13 +397,163 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
      * Get count of reminders using a specific category
      */
     suspend fun getRemindersCountByCategory(category: String): Int {
-        return repository.getRemindersCountByCategory(category)
+        return reminderRepository.getRemindersCountByCategory(category)
     }
 
     /**
      * Update category for all reminders using oldCategory
      */
     suspend fun updateCategoryForAllReminders(oldCategory: String, newCategory: String) {
-        repository.updateCategoryForAllReminders(oldCategory, newCategory)
+        reminderRepository.updateCategoryForAllReminders(oldCategory, newCategory)
+        // Also update templates
+        templateRepository.updateCategoryForAllTemplates(oldCategory, newCategory)
+    }
+
+    // ===== TEMPLATE METHODS =====
+
+    /**
+     * Get template by ID
+     */
+    suspend fun getTemplateById(id: Long): Template? {
+        return templateRepository.getTemplateById(id)
+    }
+
+    /**
+     * Get templates by category
+     */
+    fun getTemplatesByCategory(category: String): Flow<List<Template>> {
+        return templateRepository.getTemplatesByCategory(category)
+    }
+
+    /**
+     * Search templates
+     */
+    fun searchTemplates(query: String): Flow<List<Template>> {
+        return templateRepository.searchTemplates(query)
+    }
+
+    /**
+     * Get template count
+     */
+    suspend fun getTemplateCount(): Int {
+        return templateRepository.getTemplateCount()
+    }
+
+    /**
+     * Save reminder as template
+     */
+    fun saveAsTemplate(
+        name: String,
+        title: String,
+        notes: String,
+        mainCategory: String,
+        subCategory: String?,
+        recurrenceType: String,
+        recurrenceInterval: Int,
+        isVoiceEnabled: Boolean
+    ) {
+        viewModelScope.launch {
+            val template = Template(
+                name = name,
+                title = title,
+                notes = notes,
+                mainCategory = mainCategory,
+                subCategory = subCategory,
+                recurrenceType = recurrenceType,
+                recurrenceInterval = recurrenceInterval,
+                isVoiceEnabled = isVoiceEnabled
+            )
+            templateRepository.insertTemplate(template)
+        }
+    }
+
+    /**
+     * Create reminder from template
+     */
+    fun createReminderFromTemplate(template: Template, dateTime: Long) {
+        viewModelScope.launch {
+            // Increment template usage count
+            templateRepository.incrementUsageCount(template.id)
+
+            // Create reminder
+            addReminder(
+                title = template.title,
+                notes = template.notes,
+                dateTime = dateTime,
+                recurrenceType = template.recurrenceType,
+                recurrenceInterval = template.recurrenceInterval,
+                mainCategory = template.mainCategory,
+                subCategory = template.subCategory,
+                isVoiceEnabled = template.isVoiceEnabled
+            )
+        }
+    }
+
+    /**
+     * Update template
+     */
+    fun updateTemplate(template: Template) {
+        viewModelScope.launch {
+            templateRepository.updateTemplate(template)
+        }
+    }
+
+    /**
+     * Delete template
+     */
+    fun deleteTemplate(template: Template) {
+        viewModelScope.launch {
+            templateRepository.deleteTemplate(template)
+        }
+    }
+
+    /**
+     * Delete all templates
+     */
+    fun deleteAllTemplates() {
+        viewModelScope.launch {
+            templateRepository.deleteAllTemplates()
+        }
+    }
+
+    // ===== DELETED REMINDERS METHODS =====
+
+    /**
+     * Get count of deleted reminders
+     */
+    suspend fun getDeletedCount(): Int {
+        return reminderRepository.getDeletedCount()
+    }
+
+    /**
+     * Undelete a reminder (restore to original status)
+     */
+    fun undeleteReminder(reminder: Reminder) {
+        viewModelScope.launch {
+            reminderRepository.undeleteReminder(reminder.id)
+
+            // If it was active and time hasn't passed, reschedule alarm
+            if (!reminder.isCompleted && reminder.dateTime > System.currentTimeMillis()) {
+                alarmScheduler.scheduleAlarm(reminder)
+            }
+        }
+    }
+
+    /**
+     * Permanently delete all deleted reminders
+     */
+    fun permanentlyDeleteAll() {
+        viewModelScope.launch {
+            reminderRepository.permanentlyDeleteAll()
+        }
+    }
+
+    /**
+     * Auto-purge deleted reminders (called on app start and after deletes)
+     */
+    fun autoPurgeDeleted() {
+        viewModelScope.launch {
+            reminderRepository.autoPurgeDeleted()
+        }
     }
 }

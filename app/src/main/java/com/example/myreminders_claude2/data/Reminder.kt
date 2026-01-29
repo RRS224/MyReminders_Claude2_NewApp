@@ -10,7 +10,7 @@ data class Reminder(
 
     // Basic fields
     val title: String,
-    val notes: String,
+    val notes: String = "",
     val dateTime: Long,
     val isCompleted: Boolean = false,
     val completedAt: Long? = null,
@@ -21,15 +21,21 @@ data class Reminder(
     val isVoiceEnabled: Boolean = true, // Read aloud when alarm fires (default: ON)
 
     // Recurrence fields
-    val recurrenceType: String = "ONE_TIME", // ONE_TIME, HOURLY, DAILY, WEEKLY, MONTHLY, ANNUAL
+    val recurrenceType: String = RecurrenceType.ONE_TIME, // ONE_TIME, HOURLY, DAILY, WEEKLY, MONTHLY, ANNUAL
     val recurrenceInterval: Int = 1, // Every X hours/days/weeks/months
     val recurrenceDayOfWeek: Int? = null, // For WEEKLY: 1=Sun, 2=Mon, 3=Tue, etc.
     val recurrenceDayOfMonth: Int? = null, // For MONTHLY: 1-31
     val recurringGroupId: String? = null, // Groups all instances of same recurring reminder
 
     // Category fields
-    val mainCategory: String = "PERSONAL", // WORK, PERSONAL, HEALTH, FINANCE, or custom
-    val subCategory: String? = null // Call, Meeting, Email, etc.
+    val mainCategory: String = CategoryDefaults.PERSONAL, // WORK, PERSONAL, HEALTH, FINANCE, or custom
+    val subCategory: String? = null, // Call, Meeting, Email, etc.
+
+    // Deletion tracking
+    val isDeleted: Boolean = false,
+    val deletedAt: Long? = null,
+
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 // Recurrence type constants

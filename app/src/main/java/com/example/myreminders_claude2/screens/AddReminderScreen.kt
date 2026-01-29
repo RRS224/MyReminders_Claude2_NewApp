@@ -22,6 +22,7 @@ import com.example.myreminders_claude2.viewmodel.ReminderViewModel
 import com.example.myreminders_claude2.utils.TextFormatter
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.KeyboardOptions
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -42,11 +43,13 @@ fun AddReminderScreen(
     val context = LocalContext.current
     val categoryManager = remember { CategoryManager(context) }
     val allCategories = categoryManager.getAllCategories()
+    val scope = rememberCoroutineScope()
 
     var reminderText by remember { mutableStateOf(prefilledTitle) }
     var notes by remember { mutableStateOf(prefilledNotes) }
     var selectedDateTime by remember { mutableStateOf(prefilledDateTime) }
     var isVoiceEnabled by remember { mutableStateOf(true) }
+    var showSaveAsTemplateDialog by remember { mutableStateOf(false) }
 
     // Category states - initialize from prefilled values
     var mainCategory by remember {
@@ -477,7 +480,24 @@ fun AddReminderScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Save Button
+            // Save as Template Button
+            OutlinedButton(
+                onClick = { showSaveAsTemplateDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                enabled = reminderText.isNotBlank()
+            ) {
+                Text(
+                    "📋 Save as Template",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Save Reminder Button
             Button(
                 onClick = {
                     if (reminderText.isNotBlank()) {
@@ -514,6 +534,123 @@ fun AddReminderScreen(
             }
         }
     }
+
+    // Save as Template Dialog
+    if (showSaveAsTemplateDialog) {
+        SaveAsTemplateDialog(
+            reminderText = reminderText,
+            onDismiss = { showSaveAsTemplateDialog = false },
+            onSave = { templateName ->
+                val finalType = when (reminderType) {
+                    "Custom..." -> TextFormatter.smartCapitalize(customType.ifBlank { "General" })
+                    else -> reminderType
+                }
+
+                viewModel.saveAsTemplate(
+                    name = templateName,
+                    title = TextFormatter.smartCapitalize(reminderText),
+                    notes = TextFormatter.smartCapitalize(notes),
+                    mainCategory = mainCategory,
+                    subCategory = finalType,
+                    recurrenceType = recurrenceType,
+                    recurrenceInterval = recurrenceInterval,
+                    isVoiceEnabled = isVoiceEnabled
+                )
+
+                showSaveAsTemplateDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun SaveAsTemplateDialog(
+    reminderText: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var templateName by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Save as Template") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Give your template a name for easy reuse:",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                OutlinedTextField(
+                    value = templateName,
+                    onValueChange = {
+                        templateName = it
+                        errorMessage = null
+                    },
+                    label = { Text("Template Name") },
+                    placeholder = { Text("e.g., Weekly Team Meeting") },
+                    singleLine = true,
+                    isError = errorMessage != null,
+                    supportingText = errorMessage?.let { { Text(it) } },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            "Template will save:",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "• \"$reminderText\"",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            "• Category, type, recurrence, and voice settings",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    when {
+                        templateName.isBlank() -> {
+                            errorMessage = "Name cannot be empty"
+                        }
+                        templateName.length < 3 -> {
+                            errorMessage = "Name must be at least 3 characters"
+                        }
+                        else -> {
+                            onSave(templateName.trim())
+                        }
+                    }
+                }
+            ) {
+                Text("Save Template")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 private fun getRecurrenceDisplayText(type: String, interval: Int): String {

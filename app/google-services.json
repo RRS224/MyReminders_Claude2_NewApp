@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "661646502531",
+    "project_id": "my-reminders-7ef42",
+    "storage_bucket": "my-reminders-7ef42.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:661646502531:android:360732629029b7dbba09b6",
+        "android_client_info": {
+          "package_name": "com.example.myreminders_claude2"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "661646502531-03fsmogd1p31k7scog9vm6dj0rf2hneu.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.myreminders_claude2",
+            "certificate_hash": "c4541584e953933af46f9a4156544c934c314f87"
+          }
+        },
+        {
+          "client_id": "661646502531-se465679drlnv8d7q60rfafjj24gi8gq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.myreminders_claude2",
+            "certificate_hash": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+          }
+        },
+        {
+          "client_id": "661646502531-ebd116h0q4tccehgpjve5n191db9f1e4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGMdALl9gFqz4P1gEszHJg9tO8-uqX5aE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "661646502531-ebd116h0q4tccehgpjve5n191db9f1e4.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -30,12 +30,12 @@ class ReminderRepository(
         reminderDao.updateReminder(reminder)
     }
 
-    // Delete reminder
+    // Delete reminder (HARD DELETE - only used internally)
     suspend fun deleteReminder(reminder: Reminder) {
         reminderDao.deleteReminder(reminder)
     }
 
-    // Delete reminder by ID
+    // Delete reminder by ID (HARD DELETE - only used internally)
     suspend fun deleteReminderById(id: Long) {
         reminderDao.deleteReminderById(id)
     }
@@ -50,12 +50,12 @@ class ReminderRepository(
         reminderDao.updateSnoozeCount(id, count)
     }
 
-    // Clear all completed
+    // Clear all completed (SOFT DELETE)
     suspend fun clearAllCompleted() {
-        reminderDao.clearAllCompleted()
+        reminderDao.clearAllCompleted(System.currentTimeMillis())
     }
 
-    // ===== NEW: RECURRENCE METHODS =====
+    // ===== RECURRENCE METHODS =====
 
     // Get all reminders in a recurring group
     fun getRemindersInRecurringGroup(groupId: String): Flow<List<Reminder>> {
@@ -67,9 +67,9 @@ class ReminderRepository(
         return reminderDao.getFutureRemindersInGroup(groupId, currentTime)
     }
 
-    // Delete all future reminders in a recurring group
+    // Delete all future reminders in a recurring group (SOFT DELETE)
     suspend fun deleteFutureRemindersInGroup(groupId: String, currentTime: Long, excludeId: Long) {
-        reminderDao.deleteFutureRemindersInGroup(groupId, currentTime, excludeId)
+        reminderDao.deleteFutureRemindersInGroup(groupId, currentTime, excludeId, System.currentTimeMillis())
     }
 
     // Update all future reminders in a recurring group
@@ -109,7 +109,7 @@ class ReminderRepository(
         return reminderDao.getActiveCountInRecurringGroup(groupId)
     }
 
-    // ===== NEW: CATEGORY METHODS =====
+    // ===== CATEGORY METHODS =====
 
     // Get all categories
     val allCategories: Flow<List<Category>> = categoryDao.getAllCategories()
@@ -168,5 +168,91 @@ class ReminderRepository(
 
     suspend fun updateCategoryForAllReminders(oldCategory: String, newCategory: String) {
         reminderDao.updateCategoryForAllReminders(oldCategory, newCategory)
+    }
+
+    // ===== DELETED REMINDERS METHODS =====
+
+    /**
+     * Get all deleted reminders
+     */
+    val deletedReminders: Flow<List<Reminder>> = reminderDao.getDeletedReminders()
+
+    /**
+     * Get count of deleted reminders
+     */
+    suspend fun getDeletedCount(): Int {
+        return reminderDao.getDeletedCount()
+    }
+
+    /**
+     * Soft delete a reminder (mark as deleted instead of removing)
+     */
+    suspend fun softDeleteReminder(id: Long) {
+        reminderDao.softDeleteReminder(id, System.currentTimeMillis())
+    }
+
+    /**
+     * Soft delete multiple reminders
+     */
+    suspend fun softDeleteReminders(ids: List<Long>) {
+        reminderDao.softDeleteReminders(ids, System.currentTimeMillis())
+    }
+
+    /**
+     * Soft delete with recurrence check
+     */
+    suspend fun softDeleteReminderWithRecurrenceCheck(
+        reminder: Reminder,
+        deleteAllFuture: Boolean
+    ) {
+        if (deleteAllFuture && reminder.recurringGroupId != null) {
+            // Soft delete all future reminders in the group
+            reminderDao.softDeleteFutureRemindersInGroup(
+                reminder.recurringGroupId,
+                System.currentTimeMillis(),
+                reminder.id,
+                System.currentTimeMillis()
+            )
+        }
+
+        // Soft delete this reminder
+        reminderDao.softDeleteReminder(reminder.id, System.currentTimeMillis())
+    }
+
+    /**
+     * Undelete a reminder (restore to original status)
+     */
+    suspend fun undeleteReminder(id: Long) {
+        reminderDao.undeleteReminder(id)
+    }
+
+    /**
+     * Purge old deleted reminders (older than 7 days)
+     */
+    suspend fun purgeOldDeleted() {
+        val sevenDaysAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000)
+        reminderDao.purgeOldDeleted(sevenDaysAgo)
+    }
+
+    /**
+     * Purge excess deleted reminders (keep only 20 most recent)
+     */
+    suspend fun purgeExcessDeleted() {
+        reminderDao.purgeExcessDeleted()
+    }
+
+    /**
+     * Auto-purge: Remove old and excess deleted reminders
+     */
+    suspend fun autoPurgeDeleted() {
+        purgeOldDeleted()
+        purgeExcessDeleted()
+    }
+
+    /**
+     * Permanently delete all deleted reminders
+     */
+    suspend fun permanentlyDeleteAll() {
+        reminderDao.permanentlyDeleteAll()
     }
 }

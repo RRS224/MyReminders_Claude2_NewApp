@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -41,6 +41,7 @@ import androidx.navigation.navArgument
 import com.example.myreminders_claude2.data.Reminder
 import com.example.myreminders_claude2.screens.AddReminderScreen
 import com.example.myreminders_claude2.screens.CreateReminderTab
+import com.example.myreminders_claude2.screens.DeletedRemindersTab
 import com.example.myreminders_claude2.screens.EditReminderScreen
 import com.example.myreminders_claude2.screens.ManageCategoriesScreen
 import com.example.myreminders_claude2.screens.PermissionOnboardingScreen
@@ -48,6 +49,9 @@ import com.example.myreminders_claude2.screens.ReminderAlarmScreen
 import com.example.myreminders_claude2.screens.VoiceInputScreen
 import com.example.myreminders_claude2.screens.SettingsScreen
 import com.example.myreminders_claude2.ui.theme.MyRemindersTheme
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.Alignment
 import com.example.myreminders_claude2.utils.PermissionChecker
 import com.example.myreminders_claude2.utils.PreferencesManager
 import com.example.myreminders_claude2.utils.VoiceParser
@@ -59,6 +63,11 @@ import java.util.*
 import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import com.example.myreminders_claude2.screens.ManageTemplatesScreen
+import com.example.myreminders_claude2.screens.SelectTemplateScreen
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myreminders_claude2.screens.SignInScreen
+import com.example.myreminders_claude2.viewmodel.AuthViewModel
 
 class MainActivity : ComponentActivity() {
     private val viewModel: ReminderViewModel by viewModels()
@@ -115,31 +124,44 @@ fun MyRemindersApp(
 ) {
     val context = LocalContext.current
     val prefsManager = remember { PreferencesManager(context) }
-    var showOnboarding by remember { mutableStateOf(!prefsManager.hasCompletedOnboarding) }
+    val authViewModel: AuthViewModel = viewModel()
+    val authState by authViewModel.authState.collectAsState()
 
-    if (showOnboarding) {
-        PermissionOnboardingScreen(
-            onComplete = {
-                prefsManager.hasCompletedOnboarding = true
-                prefsManager.hasSkippedPermissions = false
-                showOnboarding = false
-            },
-            onSkip = {
-                prefsManager.hasCompletedOnboarding = true
-                prefsManager.hasSkippedPermissions = true
-                showOnboarding = false
-            }
-        )
-    } else {
-        MainNavigation(
-            viewModel = viewModel,
-            prefsManager = prefsManager,
-            initialReminderId = initialReminderId,
-            onThemeChanged = onThemeChanged
-        )
+    var showOnboarding by remember { mutableStateOf(!prefsManager.hasCompletedOnboarding) }
+    var hasSkippedSignIn by remember { mutableStateOf(false) }
+
+    when {
+        showOnboarding -> {
+            PermissionOnboardingScreen(
+                onComplete = {
+                    prefsManager.hasCompletedOnboarding = true
+                    prefsManager.hasSkippedPermissions = false
+                    showOnboarding = false
+                },
+                onSkip = {
+                    prefsManager.hasCompletedOnboarding = true
+                    prefsManager.hasSkippedPermissions = true
+                    showOnboarding = false
+                }
+            )
+        }
+        !authState.isSignedIn && !hasSkippedSignIn -> {
+            SignInScreen(
+                onSignInSuccess = {
+                    hasSkippedSignIn = true
+                }
+            )
+        }
+        else -> {
+            MainNavigation(
+                viewModel = viewModel,
+                prefsManager = prefsManager,
+                initialReminderId = initialReminderId,
+                onThemeChanged = onThemeChanged
+            )
+        }
     }
 }
-
 @Composable
 fun MainNavigation(
     viewModel: ReminderViewModel,
@@ -168,12 +190,9 @@ fun MainNavigation(
                 onNavigateToVoiceInput = { navController.navigate("voiceInput") },
                 onNavigateToPermissions = { navController.navigate("permissions") },
                 onNavigateToSettings = { navController.navigate("settings") },
-                onNavigateToEdit = { reminderId ->
-                    navController.navigate("edit/$reminderId")
-                },
-                onNavigateToReuse = { reminderId ->
-                    navController.navigate("reuse/$reminderId")
-                }
+                onNavigateToEdit = { id -> navController.navigate("edit/$id") },
+                onNavigateToReuse = { id -> navController.navigate("reuse/$id") },
+                onNavigateToTemplates = { navController.navigate("selectTemplate") }
             )
         }
         composable("add") {
@@ -365,13 +384,33 @@ fun MainNavigation(
             SettingsScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onThemeChanged = onThemeChanged,
-                onNavigateToManageCategories = { navController.navigate("manageCategories") }
+                onNavigateToManageCategories = { navController.navigate("manageCategories") },
+                onNavigateToManageTemplates = { navController.navigate("manageTemplates") }
             )
         }
         composable("manageCategories") {
             ManageCategoriesScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() }
+            )
+        }
+// Manage Templates
+        composable("manageTemplates") {
+            ManageTemplatesScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+// Select Template (Use Template)
+        composable("selectTemplate") {
+            SelectTemplateScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onReminderCreated = {
+                    navController.navigate("home") {
+                        popUpTo("home") { inclusive = false }
+                    }
+                }
             )
         }
         composable(
@@ -450,11 +489,13 @@ fun HomeScreen(
     onNavigateToPermissions: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToEdit: (Long) -> Unit,
-    onNavigateToReuse: (Long) -> Unit
+    onNavigateToReuse: (Long) -> Unit,
+    onNavigateToTemplates: () -> Unit
 ) {
     val context = LocalContext.current
     val activeReminders by viewModel.allActiveReminders.collectAsState(initial = emptyList())
     val completedReminders by viewModel.completedReminders.collectAsState(initial = emptyList())
+    val deletedReminders by viewModel.deletedReminders.collectAsState(initial = emptyList())
     val permissionStatus =
         remember { mutableStateOf(PermissionChecker.checkAllPermissions(context)) }
     var showMenu by remember { mutableStateOf(false) }
@@ -590,6 +631,17 @@ fun HomeScreen(
                             )
                         }
                     )
+                    Tab(
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 },
+                        text = {
+                            Text(
+                                "Deleted (${deletedReminders.size})",
+                                fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.sp
+                            )
+                        }
+                    )
                 }
             }
         },
@@ -624,7 +676,7 @@ fun HomeScreen(
                         CreateReminderTab(
                             onNavigateToManual = onNavigateToAdd,
                             onNavigateToVoice = onNavigateToVoiceInput,
-                            onNavigateToTemplates = { /* Coming next week! */ }
+                            onNavigateToTemplates = onNavigateToTemplates
                         )
                     }
                     1 -> {
@@ -650,6 +702,12 @@ fun HomeScreen(
                                 onReuseReminder = { onNavigateToReuse(it.id) }
                             )
                         }
+                    }
+                    3 -> {
+                        // Deleted Tab
+                        DeletedRemindersTab(
+                            viewModel = viewModel
+                        )
                     }
                 }
             }

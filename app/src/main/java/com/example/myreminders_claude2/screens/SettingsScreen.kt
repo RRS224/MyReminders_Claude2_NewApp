@@ -21,7 +21,8 @@ import com.example.myreminders_claude2.utils.ThemePreferences
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onThemeChanged: () -> Unit,
-    onNavigateToManageCategories: () -> Unit = {}
+    onNavigateToManageCategories: () -> Unit = {},
+    onNavigateToManageTemplates: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val themePrefs = remember { ThemePreferences(context) }
@@ -100,6 +101,50 @@ fun SettingsScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Go to Manage Categories",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            HorizontalDivider()
+
+            // Templates Section
+            Text(
+                "📋 Templates",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                onClick = onNavigateToManageTemplates
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Manage Templates",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "View, edit, or delete saved reminder templates",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Go to Manage Templates",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -361,8 +406,10 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "A world-class reminder app with voice input, smart categorization, and flexible scheduling.",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "My Reminders helps you stay organized with smart notifications, " +
+                                "voice input, custom categories, templates, and cloud sync. " +
+                                "Built to make managing your daily tasks simple and efficient.",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
