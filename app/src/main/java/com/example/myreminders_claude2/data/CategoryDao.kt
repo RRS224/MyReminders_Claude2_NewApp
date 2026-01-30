@@ -53,4 +53,18 @@ interface CategoryDao {
     // Get all custom (non-preset) categories
     @Query("SELECT * FROM categories WHERE isPreset = 0 ORDER BY name ASC")
     fun getCustomCategories(): Flow<List<Category>>
+
+    // ===== SYNC METHODS (for cloud sync) =====
+
+    /**
+     * Get all categories for sync (returns list instead of Flow)
+     */
+    @Query("SELECT * FROM categories")
+    suspend fun getAllCategoriesSync(): List<Category>
+
+    /**
+     * Get category by ID for sync (returns directly instead of Flow)
+     */
+    @Query("SELECT * FROM categories WHERE id = :id")
+    suspend fun getCategoryByIdSync(id: Long): Category?
 }

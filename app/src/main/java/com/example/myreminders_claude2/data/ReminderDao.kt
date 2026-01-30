@@ -168,4 +168,18 @@ interface ReminderDao {
         excludeId: Long,
         timestamp: Long = System.currentTimeMillis()
     )
+
+    // ===== SYNC METHODS (for cloud sync) =====
+
+    /**
+     * Get all reminders for sync (returns list instead of Flow)
+     */
+    @Query("SELECT * FROM reminders")
+    suspend fun getAllRemindersSync(): List<Reminder>
+
+    /**
+     * Get reminder by ID for sync (returns directly instead of Flow)
+     */
+    @Query("SELECT * FROM reminders WHERE id = :id")
+    suspend fun getReminderByIdSync(id: Long): Reminder?
 }

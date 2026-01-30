@@ -75,4 +75,18 @@ interface TemplateDao {
     // Delete templates by category
     @Query("DELETE FROM templates WHERE mainCategory = :category")
     suspend fun deleteTemplatesByCategory(category: String)
+
+    // ===== SYNC METHODS (for cloud sync) =====
+
+    /**
+     * Get all templates for sync (returns list instead of Flow)
+     */
+    @Query("SELECT * FROM templates")
+    suspend fun getAllTemplatesSync(): List<Template>
+
+    /**
+     * Get template by ID for sync (returns directly instead of Flow)
+     */
+    @Query("SELECT * FROM templates WHERE id = :id")
+    suspend fun getTemplateByIdSync(id: Long): Template?
 }

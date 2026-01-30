@@ -11,7 +11,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.myreminders_claude2"
+        applicationId = "com.redboxstudios.myreminders"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
@@ -87,6 +87,8 @@ dependencies {
     // Firebase - ADD THIS SECTION
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx:24.10.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.android.gms:play-services-auth:20.7.0")
 

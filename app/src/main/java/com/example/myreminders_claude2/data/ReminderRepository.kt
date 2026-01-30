@@ -4,7 +4,8 @@ import kotlinx.coroutines.flow.Flow
 
 class ReminderRepository(
     private val reminderDao: ReminderDao,
-    private val categoryDao: CategoryDao
+    private val categoryDao: CategoryDao,
+    private val syncManager: SyncManager? = null // Nullable to support offline mode
 ) {
 
     // ===== REMINDER METHODS =====
@@ -22,37 +23,59 @@ class ReminderRepository(
 
     // Insert reminder
     suspend fun insertReminder(reminder: Reminder): Long {
-        return reminderDao.insertReminder(reminder)
+        val now = System.currentTimeMillis()
+        val reminderWithTimestamp = reminder.copy(updatedAt = now)
+        val id = reminderDao.insertReminder(reminderWithTimestamp)
+        // Sync to cloud
+        syncManager?.uploadReminder(reminderWithTimestamp.copy(id = id))
+        return id
     }
 
     // Update reminder
     suspend fun updateReminder(reminder: Reminder) {
-        reminderDao.updateReminder(reminder)
+        val now = System.currentTimeMillis()
+        val reminderWithTimestamp = reminder.copy(updatedAt = now)
+        reminderDao.updateReminder(reminderWithTimestamp)
+        // Sync to cloud
+        syncManager?.uploadReminder(reminderWithTimestamp)
     }
 
     // Delete reminder (HARD DELETE - only used internally)
     suspend fun deleteReminder(reminder: Reminder) {
         reminderDao.deleteReminder(reminder)
+        // Delete from cloud
+        syncManager?.deleteReminderFromCloud(reminder.id)
     }
 
     // Delete reminder by ID (HARD DELETE - only used internally)
     suspend fun deleteReminderById(id: Long) {
         reminderDao.deleteReminderById(id)
+        // Delete from cloud
+        syncManager?.deleteReminderFromCloud(id)
     }
 
     // Mark as completed
     suspend fun markAsCompleted(id: Long, isCompleted: Boolean, completedAt: Long, reason: String) {
         reminderDao.markAsCompleted(id, isCompleted, completedAt, reason)
+        // Sync updated reminder to cloud
+        getReminderById(id)?.let { reminder ->
+            syncManager?.uploadReminder(reminder)
+        }
     }
 
     // Update snooze count
     suspend fun updateSnoozeCount(id: Long, count: Int) {
         reminderDao.updateSnoozeCount(id, count)
+        // Sync updated reminder to cloud
+        getReminderById(id)?.let { reminder ->
+            syncManager?.uploadReminder(reminder)
+        }
     }
 
     // Clear all completed (SOFT DELETE)
     suspend fun clearAllCompleted() {
         reminderDao.clearAllCompleted(System.currentTimeMillis())
+        // Note: Cloud sync will handle this via the listener
     }
 
     // ===== RECURRENCE METHODS =====
@@ -70,6 +93,7 @@ class ReminderRepository(
     // Delete all future reminders in a recurring group (SOFT DELETE)
     suspend fun deleteFutureRemindersInGroup(groupId: String, currentTime: Long, excludeId: Long) {
         reminderDao.deleteFutureRemindersInGroup(groupId, currentTime, excludeId, System.currentTimeMillis())
+        // Note: Cloud sync will handle this via the listener
     }
 
     // Update all future reminders in a recurring group
@@ -82,6 +106,7 @@ class ReminderRepository(
         subCategory: String?
     ) {
         reminderDao.updateFutureRemindersInGroup(groupId, currentTime, title, notes, mainCategory, subCategory)
+        // Note: Cloud sync will handle this via the listener
     }
 
     // Get active reminders by recurrence type
@@ -134,27 +159,38 @@ class ReminderRepository(
 
     // Insert category
     suspend fun insertCategory(category: Category): Long {
-        return categoryDao.insertCategory(category)
+        val id = categoryDao.insertCategory(category)
+        // Sync to cloud
+        syncManager?.uploadCategory(category.copy(id = id))
+        return id
     }
 
     // Insert multiple categories
     suspend fun insertCategories(categories: List<Category>) {
         categoryDao.insertCategories(categories)
+        // Sync to cloud
+        categories.forEach { category ->
+            syncManager?.uploadCategory(category)
+        }
     }
 
     // Update category
     suspend fun updateCategory(category: Category) {
         categoryDao.updateCategory(category)
+        // Sync to cloud
+        syncManager?.uploadCategory(category)
     }
 
     // Delete category
     suspend fun deleteCategory(category: Category) {
         categoryDao.deleteCategory(category)
+        // Note: Categories don't have cloud delete (they're preset or custom)
     }
 
     // Delete category by ID
     suspend fun deleteCategoryById(categoryId: Long) {
         categoryDao.deleteCategoryById(categoryId)
+        // Note: Categories don't have cloud delete (they're preset or custom)
     }
 
     // Get custom categories
@@ -168,6 +204,7 @@ class ReminderRepository(
 
     suspend fun updateCategoryForAllReminders(oldCategory: String, newCategory: String) {
         reminderDao.updateCategoryForAllReminders(oldCategory, newCategory)
+        // Note: Cloud sync will handle this via the listener
     }
 
     // ===== DELETED REMINDERS METHODS =====
@@ -189,6 +226,10 @@ class ReminderRepository(
      */
     suspend fun softDeleteReminder(id: Long) {
         reminderDao.softDeleteReminder(id, System.currentTimeMillis())
+        // Sync to cloud
+        getReminderById(id)?.let { reminder ->
+            syncManager?.uploadReminder(reminder)
+        }
     }
 
     /**
@@ -196,6 +237,12 @@ class ReminderRepository(
      */
     suspend fun softDeleteReminders(ids: List<Long>) {
         reminderDao.softDeleteReminders(ids, System.currentTimeMillis())
+        // Sync to cloud
+        ids.forEach { id ->
+            getReminderById(id)?.let { reminder ->
+                syncManager?.uploadReminder(reminder)
+            }
+        }
     }
 
     /**
@@ -217,6 +264,11 @@ class ReminderRepository(
 
         // Soft delete this reminder
         reminderDao.softDeleteReminder(reminder.id, System.currentTimeMillis())
+
+        // Sync to cloud
+        getReminderById(reminder.id)?.let { updatedReminder ->
+            syncManager?.uploadReminder(updatedReminder)
+        }
     }
 
     /**
@@ -224,6 +276,10 @@ class ReminderRepository(
      */
     suspend fun undeleteReminder(id: Long) {
         reminderDao.undeleteReminder(id)
+        // Sync to cloud
+        getReminderById(id)?.let { reminder ->
+            syncManager?.uploadReminder(reminder)
+        }
     }
 
     /**

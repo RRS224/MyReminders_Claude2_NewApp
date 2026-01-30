@@ -35,7 +35,8 @@ data class Reminder(
     val isDeleted: Boolean = false,
     val deletedAt: Long? = null,
 
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 // Recurrence type constants

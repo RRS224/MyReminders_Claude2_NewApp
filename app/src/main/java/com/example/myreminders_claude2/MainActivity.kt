@@ -129,7 +129,25 @@ fun MyRemindersApp(
 
     var showOnboarding by remember { mutableStateOf(!prefsManager.hasCompletedOnboarding) }
     var hasSkippedSignIn by remember { mutableStateOf(false) }
+    // Connect auth callbacks to sync manager
+    LaunchedEffect(Unit) {
+        authViewModel.onSignInSuccess = {
+            viewModel.startSync()
+        }
+        authViewModel.onSignOut = {
+            viewModel.stopSync()
+        }
+    }
 
+    // Connect auth callbacks to sync manager
+    LaunchedEffect(Unit) {
+        authViewModel.onSignInSuccess = {
+            viewModel.startSync()
+        }
+        authViewModel.onSignOut = {
+            viewModel.stopSync()
+        }
+    }
     when {
         showOnboarding -> {
             PermissionOnboardingScreen(

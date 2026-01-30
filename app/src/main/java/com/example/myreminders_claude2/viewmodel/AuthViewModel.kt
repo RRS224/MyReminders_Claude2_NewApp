@@ -31,6 +31,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val _authState = MutableStateFlow(AuthState())
     val authState: StateFlow<AuthState> = _authState
 
+    // Callback for when user signs in successfully (to start sync)
+    var onSignInSuccess: (() -> Unit)? = null
+
+    // Callback for when user signs out (to stop sync)
+    var onSignOut: (() -> Unit)? = null
+
     init {
         checkAuthState()
     }
@@ -78,6 +84,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     displayName = user?.displayName,
                     isLoading = false
                 )
+
+                // Trigger sync start
+                onSignInSuccess?.invoke()
             } catch (e: Exception) {
                 _authState.value = _authState.value.copy(
                     isLoading = false,
@@ -93,6 +102,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 auth.signOut()
                 oneTapClient.signOut().await()
                 _authState.value = AuthState(isSignedIn = false)
+
+                // Trigger sync stop
+                onSignOut?.invoke()
             } catch (e: Exception) {
                 _authState.value = _authState.value.copy(
                     error = e.message ?: "Sign out failed"

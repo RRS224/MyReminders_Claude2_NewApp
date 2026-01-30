@@ -6,6 +6,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.myreminders_claude2.alarm.AlarmScheduler
 import com.example.myreminders_claude2.data.*
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -14,13 +16,48 @@ import java.util.*
 class ReminderViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = ReminderDatabase.getDatabase(application)
-    private val reminderRepository = ReminderRepository(database.reminderDao(), database.categoryDao())
+
+    // Initialize SyncManager
+    private val syncManager = SyncManager(
+        firestore = FirebaseFirestore.getInstance(),
+        auth = FirebaseAuth.getInstance(),
+        reminderDao = database.reminderDao(),
+        categoryDao = database.categoryDao(),
+        templateDao = database.templateDao()
+    )
+
+    private val reminderRepository = ReminderRepository(
+        database.reminderDao(),
+        database.categoryDao(),
+        syncManager
+    )
     private val templateRepository = TemplateRepository(database.templateDao())
     private val alarmScheduler = AlarmScheduler(application)
 
     init {
         // Auto-purge deleted reminders on app start
         autoPurgeDeleted()
+
+        // Start sync if user is already logged in
+        if (FirebaseAuth.getInstance().currentUser != null) {
+            startSync()
+        }
+    }
+
+    // ===== SYNC METHODS =====
+
+    /**
+     * Start cloud sync (call when user signs in)
+     */
+    fun startSync() {
+        syncManager.startSync()
+    }
+
+    /**
+     * Stop cloud sync (call when user signs out)
+     */
+    fun stopSync() {
+        syncManager.stopSync()
     }
 
     // ===== REMINDER FLOWS =====
@@ -555,5 +592,11 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             reminderRepository.autoPurgeDeleted()
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // Stop sync when ViewModel is destroyed
+        stopSync()
     }
 }
