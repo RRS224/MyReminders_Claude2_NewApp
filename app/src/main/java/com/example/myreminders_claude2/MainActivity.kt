@@ -68,6 +68,16 @@ import com.example.myreminders_claude2.screens.SelectTemplateScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.myreminders_claude2.screens.SignInScreen
 import com.example.myreminders_claude2.viewmodel.AuthViewModel
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import coil.compose.AsyncImage
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
     private val viewModel: ReminderViewModel by viewModels()
@@ -129,15 +139,6 @@ fun MyRemindersApp(
 
     var showOnboarding by remember { mutableStateOf(!prefsManager.hasCompletedOnboarding) }
     var hasSkippedSignIn by remember { mutableStateOf(false) }
-    // Connect auth callbacks to sync manager
-    LaunchedEffect(Unit) {
-        authViewModel.onSignInSuccess = {
-            viewModel.startSync()
-        }
-        authViewModel.onSignOut = {
-            viewModel.stopSync()
-        }
-    }
 
     // Connect auth callbacks to sync manager
     LaunchedEffect(Unit) {
@@ -148,6 +149,7 @@ fun MyRemindersApp(
             viewModel.stopSync()
         }
     }
+
     when {
         showOnboarding -> {
             PermissionOnboardingScreen(
@@ -173,6 +175,7 @@ fun MyRemindersApp(
         else -> {
             MainNavigation(
                 viewModel = viewModel,
+                authViewModel = authViewModel,
                 prefsManager = prefsManager,
                 initialReminderId = initialReminderId,
                 onThemeChanged = onThemeChanged
@@ -183,6 +186,7 @@ fun MyRemindersApp(
 @Composable
 fun MainNavigation(
     viewModel: ReminderViewModel,
+    authViewModel: AuthViewModel,
     prefsManager: PreferencesManager,
     initialReminderId: Long?,
     onThemeChanged: () -> Unit
@@ -203,6 +207,7 @@ fun MainNavigation(
         composable("home") {
             HomeScreen(
                 viewModel = viewModel,
+                authViewModel = authViewModel,
                 prefsManager = prefsManager,
                 onNavigateToAdd = { navController.navigate("add") },
                 onNavigateToVoiceInput = { navController.navigate("voiceInput") },
@@ -497,241 +502,6 @@ fun MainNavigation(
         }
     }
 }
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun HomeScreen(
-    viewModel: ReminderViewModel,
-    prefsManager: PreferencesManager,
-    onNavigateToAdd: () -> Unit,
-    onNavigateToVoiceInput: () -> Unit,
-    onNavigateToPermissions: () -> Unit,
-    onNavigateToSettings: () -> Unit,
-    onNavigateToEdit: (Long) -> Unit,
-    onNavigateToReuse: (Long) -> Unit,
-    onNavigateToTemplates: () -> Unit
-) {
-    val context = LocalContext.current
-    val activeReminders by viewModel.allActiveReminders.collectAsState(initial = emptyList())
-    val completedReminders by viewModel.completedReminders.collectAsState(initial = emptyList())
-    val deletedReminders by viewModel.deletedReminders.collectAsState(initial = emptyList())
-    val permissionStatus =
-        remember { mutableStateOf(PermissionChecker.checkAllPermissions(context)) }
-    var showMenu by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableStateOf(0) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-        permissionStatus.value = PermissionChecker.checkAllPermissions(context)
-    }
-
-    Scaffold(
-        topBar = {
-            Column {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Text(
-                            "My Reminders",
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            )
-                        )
-                    },
-                    actions = {
-                        // Settings Icon (direct access)
-                        IconButton(onClick = onNavigateToSettings) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings"
-                            )
-                        }
-
-                        // Clear All button (only on Completed tab)
-                        if (selectedTab == 2 && completedReminders.isNotEmpty()) {
-                            IconButton(onClick = {
-                                scope.launch {
-                                    viewModel.clearAllCompleted()
-                                }
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.DeleteSweep,
-                                    contentDescription = "Clear All Completed",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
-
-                        // Overflow Menu
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Menu"
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text(
-                                            "Permissions",
-                                            style = MaterialTheme.typography.bodyLarge.copy(
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        )
-                                        if (permissionStatus.value.hasAnyMissing) {
-                                            Text(
-                                                "⚠️ Some missing",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.error
-                                            )
-                                        } else {
-                                            Text(
-                                                "✓ All granted",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    onNavigateToPermissions()
-                                }
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    modifier = Modifier.shadow(
-                        elevation = 2.dp,
-                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                    )
-                )
-
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.primary
-                ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        text = {
-                            Text(
-                                "Create",
-                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        text = {
-                            Text(
-                                "Active (${activeReminders.size})",
-                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        text = {
-                            Text(
-                                "Completed (${completedReminders.size})",
-                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 3,
-                        onClick = { selectedTab = 3 },
-                        text = {
-                            Text(
-                                "Deleted (${deletedReminders.size})",
-                                fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 12.sp
-                            )
-                        }
-                    )
-                }
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            if (permissionStatus.value.hasAnyMissing && selectedTab == 1) {
-                PermissionWarningBanner(
-                    onFixClick = onNavigateToPermissions
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.background,
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.05f)
-                            )
-                        )
-                    )
-            ) {
-                when (selectedTab) {
-                    0 -> {
-                        // Create Tab
-                        CreateReminderTab(
-                            onNavigateToManual = onNavigateToAdd,
-                            onNavigateToVoice = onNavigateToVoiceInput,
-                            onNavigateToTemplates = onNavigateToTemplates
-                        )
-                    }
-                    1 -> {
-                        // Active Tab
-                        if (activeReminders.isEmpty()) {
-                            EmptyState(isCompleted = false)
-                        } else {
-                            ActiveReminderList(
-                                reminders = activeReminders,
-                                onDeleteReminder = { viewModel.deleteReminder(it) },
-                                onEditReminder = { onNavigateToEdit(it.id) }
-                            )
-                        }
-                    }
-                    2 -> {
-                        // Completed Tab
-                        if (completedReminders.isEmpty()) {
-                            EmptyState(isCompleted = true)
-                        } else {
-                            CompletedReminderList(
-                                reminders = completedReminders,
-                                onDeleteReminder = { viewModel.deleteReminder(it) },
-                                onReuseReminder = { onNavigateToReuse(it.id) }
-                            )
-                        }
-                    }
-                    3 -> {
-                        // Deleted Tab
-                        DeletedRemindersTab(
-                            viewModel = viewModel
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 @Composable
 fun PermissionWarningBanner(
     onFixClick: () -> Unit
@@ -843,49 +613,6 @@ fun EmptyState(isCompleted: Boolean) {
         )
     }
 }
-
-@Composable
-fun ActiveReminderList(
-    reminders: List<Reminder>,
-    onDeleteReminder: (Reminder) -> Unit,
-    onEditReminder: (Reminder) -> Unit
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items(reminders, key = { it.id }) { reminder ->
-            ActiveReminderCard(
-                reminder = reminder,
-                onDelete = { onDeleteReminder(reminder) },
-                onEdit = { onEditReminder(reminder) }
-            )
-        }
-    }
-}
-
-@Composable
-fun CompletedReminderList(
-    reminders: List<Reminder>,
-    onDeleteReminder: (Reminder) -> Unit,
-    onReuseReminder: (Reminder) -> Unit
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items(reminders, key = { it.id }) { reminder ->
-            CompletedReminderCard(
-                reminder = reminder,
-                onDelete = { onDeleteReminder(reminder) },
-                onReuse = { onReuseReminder(reminder) }
-            )
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActiveReminderCard(
@@ -1086,6 +813,26 @@ fun ActiveReminderCard(
                     }
                 }
             }
+        }
+    }
+}
+@Composable
+fun ActiveReminderList(
+    reminders: List<Reminder>,
+    onDeleteReminder: (Reminder) -> Unit,
+    onEditReminder: (Reminder) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(reminders, key = { it.id }) { reminder ->
+            ActiveReminderCard(
+                reminder = reminder,
+                onDelete = { onDeleteReminder(reminder) },
+                onEdit = { onEditReminder(reminder) }
+            )
         }
     }
 }
@@ -1315,3 +1062,349 @@ fun CompletedReminderCard(
         }
     }
 }
+
+@Composable
+fun CompletedReminderList(
+    reminders: List<Reminder>,
+    onDeleteReminder: (Reminder) -> Unit,
+    onReuseReminder: (Reminder) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(reminders, key = { it.id }) { reminder ->
+            CompletedReminderCard(
+                reminder = reminder,
+                onDelete = { onDeleteReminder(reminder) },
+                onReuse = { onReuseReminder(reminder) }
+            )
+        }
+    }
+}
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeScreen(
+    viewModel: ReminderViewModel,
+    authViewModel: AuthViewModel,
+    prefsManager: PreferencesManager,
+    onNavigateToAdd: () -> Unit,
+    onNavigateToVoiceInput: () -> Unit,
+    onNavigateToPermissions: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToEdit: (Long) -> Unit,
+    onNavigateToReuse: (Long) -> Unit,
+    onNavigateToTemplates: () -> Unit
+) {
+    val context = LocalContext.current
+    val activeReminders by viewModel.allActiveReminders.collectAsState(initial = emptyList())
+    val completedReminders by viewModel.completedReminders.collectAsState(initial = emptyList())
+    val deletedReminders by viewModel.deletedReminders.collectAsState(initial = emptyList())
+    val permissionStatus =
+        remember { mutableStateOf(PermissionChecker.checkAllPermissions(context)) }
+    var showMenu by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        permissionStatus.value = PermissionChecker.checkAllPermissions(context)
+    }
+
+    Scaffold(
+        topBar = {
+            Column {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            "My Reminders",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                        )
+                    },
+                    actions = {
+                        // User Profile Menu
+                        val currentUser = FirebaseAuth.getInstance().currentUser
+                        var showUserMenu by remember { mutableStateOf(false) }
+
+                        Box {
+                            if (currentUser != null) {
+                                // Signed In - Show Avatar
+                                IconButton(onClick = { showUserMenu = true }) {
+                                    AsyncImage(
+                                        model = currentUser.photoUrl,
+                                        contentDescription = "Profile",
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .border(
+                                                1.dp,
+                                                MaterialTheme.colorScheme.primary,
+                                                CircleShape
+                                            ),
+                                        contentScale = ContentScale.Crop,
+                                        error = painterResource(android.R.drawable.ic_menu_myplaces)
+                                    )
+                                }
+
+                                DropdownMenu(
+                                    expanded = showUserMenu,
+                                    onDismissRequest = { showUserMenu = false }
+                                ) {
+                                    // User Info
+                                    Column(
+                                        modifier = Modifier.padding(16.dp)
+                                    ) {
+                                        Text(
+                                            currentUser.displayName ?: "User",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            currentUser.email ?: "",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            "✓ Signed in with Google",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+
+                                    HorizontalDivider()
+
+                                    // Sign Out
+                                    DropdownMenuItem(
+                                        text = { Text("Sign out") },
+                                        onClick = {
+                                            showUserMenu = false
+                                            authViewModel.signOut()
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.ExitToApp,
+                                                contentDescription = null
+                                            )
+                                        }
+                                    )
+                                }
+                            } else {
+                                // Not Signed In - Show Sign In Button
+                                TextButton(onClick = { /* Navigate to sign in */ }) {
+                                    Text("Sign In", color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+
+                        // Settings Icon (direct access)
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings"
+                            )
+                        }
+
+                        // Clear All button (only on Completed tab)
+                        if (selectedTab == 2 && completedReminders.isNotEmpty()) {
+                            IconButton(onClick = {
+                                scope.launch {
+                                    viewModel.clearAllCompleted()
+                                }
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteSweep,
+                                    contentDescription = "Clear All Completed",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+
+                        // Overflow Menu
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Menu"
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(
+                                            "Permissions",
+                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        )
+                                        if (permissionStatus.value.hasAnyMissing) {
+                                            Text(
+                                                "⚠️ Some missing",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        } else {
+                                            Text(
+                                                "✓ All granted",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onNavigateToPermissions()
+                                }
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.shadow(
+                        elevation = 2.dp,
+                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                    )
+                )
+
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = {
+                            Text(
+                                "Create",
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = {
+                            Text(
+                                "Active (${activeReminders.size})",
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        text = {
+                            Text(
+                                "Completed (${completedReminders.size})",
+                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 },
+                        text = {
+                            Text(
+                                "Deleted (${deletedReminders.size})",
+                                fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 12.sp
+                            )
+                        }
+                    )
+                }
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            if (permissionStatus.value.hasAnyMissing && selectedTab == 1) {
+                PermissionWarningBanner(
+                    onFixClick = onNavigateToPermissions
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.background,
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.05f)
+                            )
+                        )
+                    )
+            ) {
+                when (selectedTab) {
+                    0 -> {
+                        // Create Tab
+                        CreateReminderTab(
+                            onNavigateToManual = onNavigateToAdd,
+                            onNavigateToVoice = onNavigateToVoiceInput,
+                            onNavigateToTemplates = onNavigateToTemplates
+                        )
+                    }
+
+                    1 -> {
+                        // Active Tab
+                        if (activeReminders.isEmpty()) {
+                            EmptyState(isCompleted = false)
+                        } else {
+                            ActiveReminderList(
+                                reminders = activeReminders,
+                                onDeleteReminder = { viewModel.deleteReminder(it) },
+                                onEditReminder = { onNavigateToEdit(it.id) }
+                            )
+                        }
+                    }
+
+                    2 -> {
+                        // Completed Tab
+                        if (completedReminders.isEmpty()) {
+                            EmptyState(isCompleted = true)
+                        } else {
+                            CompletedReminderList(
+                                reminders = completedReminders,
+                                onDeleteReminder = { viewModel.deleteReminder(it) },
+                                onReuseReminder = { onNavigateToReuse(it.id) }
+                            )
+                        }
+                    }
+
+                    3 -> {
+                        // Deleted Tab
+                        DeletedRemindersTab(
+                            viewModel = viewModel
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+

@@ -67,6 +67,9 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
 
+    // Image Loading
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
     // Permissions
     implementation("com.google.accompanist:accompanist-permissions:0.32.0")
 
@@ -91,6 +94,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.android.gms:play-services-auth:20.7.0")
+    implementation("com.google.firebase:firebase-auth-ktx:22.3.1")
 
     // Testing
     testImplementation("junit:junit:4.13.2")
