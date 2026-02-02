@@ -184,10 +184,7 @@ fun DeletedRemindersTab(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        // Note: permanentlyDeleteAll() deletes ALL deleted reminders
-                        // For single item, we'd need a new method in ViewModel
-                        // For now, this dialog shows but doesn't have backend support
-                        // You can add viewModel.permanentlyDeleteSingle(selectedReminder!!.id) if needed
+                        viewModel.permanentlyDeleteSingle(selectedReminder!!.id)
                         showPermanentDeleteDialog = false
                         selectedReminder = null
                     },

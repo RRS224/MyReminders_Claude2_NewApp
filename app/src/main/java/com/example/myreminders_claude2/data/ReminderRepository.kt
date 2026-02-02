@@ -92,7 +92,12 @@ class ReminderRepository(
 
     // Delete all future reminders in a recurring group (SOFT DELETE)
     suspend fun deleteFutureRemindersInGroup(groupId: String, currentTime: Long, excludeId: Long) {
-        reminderDao.deleteFutureRemindersInGroup(groupId, currentTime, excludeId, System.currentTimeMillis())
+        reminderDao.deleteFutureRemindersInGroup(
+            groupId,
+            currentTime,
+            excludeId,
+            System.currentTimeMillis()
+        )
         // Note: Cloud sync will handle this via the listener
     }
 
@@ -105,7 +110,14 @@ class ReminderRepository(
         mainCategory: String,
         subCategory: String?
     ) {
-        reminderDao.updateFutureRemindersInGroup(groupId, currentTime, title, notes, mainCategory, subCategory)
+        reminderDao.updateFutureRemindersInGroup(
+            groupId,
+            currentTime,
+            title,
+            notes,
+            mainCategory,
+            subCategory
+        )
         // Note: Cloud sync will handle this via the listener
     }
 
@@ -303,6 +315,13 @@ class ReminderRepository(
     suspend fun autoPurgeDeleted() {
         purgeOldDeleted()
         purgeExcessDeleted()
+    }
+
+    /**
+     * Permanently delete a single reminder
+     */
+    suspend fun permanentlyDeleteReminder(reminderId: Long) {
+        reminderDao.permanentlyDeleteReminder(reminderId)
     }
 
     /**

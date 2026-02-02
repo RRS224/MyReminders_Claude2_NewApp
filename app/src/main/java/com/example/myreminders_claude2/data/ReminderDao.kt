@@ -182,4 +182,7 @@ interface ReminderDao {
      */
     @Query("SELECT * FROM reminders WHERE id = :id")
     suspend fun getReminderByIdSync(id: Long): Reminder?
+    @Query("DELETE FROM reminders WHERE id = :reminderId")
+    suspend fun permanentlyDeleteReminder(reminderId: Long)
+
 }
