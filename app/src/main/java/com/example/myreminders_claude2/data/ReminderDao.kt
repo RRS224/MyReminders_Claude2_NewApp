@@ -94,45 +94,24 @@ interface ReminderDao {
 
     // ===== DELETED REMINDERS QUERIES =====
 
-    /**
-     * Get all deleted reminders (max 20, sorted by deletion time)
-     */
     @Query("SELECT * FROM reminders WHERE isDeleted = 1 ORDER BY deletedAt DESC LIMIT 20")
     fun getDeletedReminders(): Flow<List<Reminder>>
 
-    /**
-     * Get count of deleted reminders
-     */
     @Query("SELECT COUNT(*) FROM reminders WHERE isDeleted = 1")
     suspend fun getDeletedCount(): Int
 
-    /**
-     * Soft delete a reminder (mark as deleted instead of removing)
-     */
     @Query("UPDATE reminders SET isDeleted = 1, deletedAt = :timestamp WHERE id = :id")
     suspend fun softDeleteReminder(id: Long, timestamp: Long = System.currentTimeMillis())
 
-    /**
-     * Soft delete multiple reminders
-     */
     @Query("UPDATE reminders SET isDeleted = 1, deletedAt = :timestamp WHERE id IN (:ids)")
     suspend fun softDeleteReminders(ids: List<Long>, timestamp: Long = System.currentTimeMillis())
 
-    /**
-     * Undelete a reminder (restore to original status)
-     */
     @Query("UPDATE reminders SET isDeleted = 0, deletedAt = null WHERE id = :id")
     suspend fun undeleteReminder(id: Long)
 
-    /**
-     * Permanently delete old reminders (older than cutoff time)
-     */
     @Query("DELETE FROM reminders WHERE isDeleted = 1 AND deletedAt < :cutoffTime")
     suspend fun purgeOldDeleted(cutoffTime: Long)
 
-    /**
-     * Permanently delete excess deleted reminders (keep only 20 most recent)
-     */
     @Query("""
         DELETE FROM reminders 
         WHERE isDeleted = 1 
@@ -145,15 +124,9 @@ interface ReminderDao {
     """)
     suspend fun purgeExcessDeleted()
 
-    /**
-     * Permanently delete all deleted reminders
-     */
     @Query("DELETE FROM reminders WHERE isDeleted = 1")
     suspend fun permanentlyDeleteAll()
 
-    /**
-     * Soft delete all future reminders in a recurring group
-     */
     @Query("""
         UPDATE reminders 
         SET isDeleted = 1, deletedAt = :timestamp 
@@ -169,20 +142,28 @@ interface ReminderDao {
         timestamp: Long = System.currentTimeMillis()
     )
 
-    // ===== SYNC METHODS (for cloud sync) =====
+    // ===== SYNC METHODS =====
 
-    /**
-     * Get all reminders for sync (returns list instead of Flow)
-     */
     @Query("SELECT * FROM reminders")
     suspend fun getAllRemindersSync(): List<Reminder>
 
-    /**
-     * Get reminder by ID for sync (returns directly instead of Flow)
-     */
     @Query("SELECT * FROM reminders WHERE id = :id")
     suspend fun getReminderByIdSync(id: Long): Reminder?
+
     @Query("DELETE FROM reminders WHERE id = :reminderId")
     suspend fun permanentlyDeleteReminder(reminderId: Long)
 
+    // ===== PERMANENTLY DELETED TRACKING =====
+
+    // ✅ Record that a reminder was permanently deleted
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun recordPermanentlyDeleted(permanentlyDeleted: PermanentlyDeleted)
+
+    // ✅ Check if a reminder was permanently deleted
+    @Query("SELECT COUNT(*) FROM permanently_deleted WHERE reminderId = :id")
+    suspend fun isPermanentlyDeleted(id: Long): Int
+
+    // ✅ Record all deleted reminders as permanently deleted
+    @Query("INSERT OR IGNORE INTO permanently_deleted (reminderId) SELECT id FROM reminders WHERE isDeleted = 1")
+    suspend fun recordAllDeletedAsPermanent()
 }

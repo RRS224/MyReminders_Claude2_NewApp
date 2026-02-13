@@ -35,7 +35,8 @@ fun SelectTemplateScreen(
     var selectedTemplate by remember { mutableStateOf<Template?>(null) }
     var selectedDateTime by remember { mutableStateOf(System.currentTimeMillis() + (60 * 60 * 1000)) }
 
-    val dateFormat = SimpleDateFormat("EEE, MMM dd yyyy 'at' hh:mm a", Locale.getDefault())
+    val dateFormat =
+        SimpleDateFormat("EEE, MMM dd yyyy 'at' hh:mm a", Locale.getDefault())
 
     Scaffold(
         topBar = {

@@ -2,7 +2,6 @@ package com.example.myreminders_claude2.data
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
-import java.util.*
 
 data class FirestoreReminder(
     @DocumentId val id: String = "",
@@ -10,11 +9,23 @@ data class FirestoreReminder(
     val description: String = "",
     val dateTime: Timestamp? = null,
     val category: String = "Personal",
-    val isCompleted: Boolean = false,
-    val isDeleted: Boolean = false,
+    val completed: Boolean = false,
+    val deleted: Boolean = false,
     val createdAt: Timestamp = Timestamp.now(),
     val updatedAt: Timestamp = Timestamp.now(),
-    val userId: String = ""
+    val userId: String = "",
+    // ✅ Added missing fields:
+    val completedAt: Timestamp? = null,
+    val deletedAt: Timestamp? = null,
+    val dismissalReason: String? = null,
+    val recurrenceType: String = "ONE_TIME",
+    val recurrenceInterval: Int = 1,
+    val recurrenceDayOfWeek: Int? = null,
+    val recurrenceDayOfMonth: Int? = null,
+    val recurringGroupId: String? = null,
+    val subCategory: String? = null,
+    val isVoiceEnabled: Boolean = true,
+    val snoozeCount: Int = 0
 )
 
 data class FirestoreCategory(

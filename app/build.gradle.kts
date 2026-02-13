@@ -3,7 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp") version "2.0.21-1.0.27"
-    id("com.google.gms.google-services")  // ADD THIS LINE
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -14,8 +14,8 @@ android {
         applicationId = "com.redboxstudios.myreminders"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -23,8 +23,19 @@ android {
         }
     }
 
+    // ✅ SIGNING CONFIG ADDED HERE
+    signingConfigs {
+        create("release") {
+            storeFile = file("C:\\Users\\Ranjit\\AndroidStudioProjects\\MyReminders_Claude2_NewApp\\my-reminders-keystore.jks")
+            storePassword = "Myreminders#2704"
+            keyAlias = "my-reminders-key"
+            keyPassword = "Myreminders#2704"
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")  // ✅ ADDED THIS LINE
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -87,7 +98,7 @@ dependencies {
     // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
 
-    // Firebase - ADD THIS SECTION
+    // Firebase
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx:24.10.0")

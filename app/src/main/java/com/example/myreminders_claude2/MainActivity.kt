@@ -1,5 +1,6 @@
 package com.example.myreminders_claude2
 
+
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -8,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.ui.unit.sp
+import com.example.myreminders_claude2.data.RecurrenceType
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import com.example.myreminders_claude2.alarm.AlarmService
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -620,7 +623,11 @@ fun ActiveReminderCard(
     onDelete: () -> Unit,
     onEdit: () -> Unit
 ) {
-    val dateFormat = SimpleDateFormat("EEE, MMM dd 'at' hh:mm a", Locale.getDefault())
+    val dateFormat = if (reminder.recurrenceType == RecurrenceType.ANNUAL) {
+        SimpleDateFormat("EEE, MMM dd ''yy 'at' hh:mm a", Locale.getDefault())
+    } else {
+        SimpleDateFormat("EEE, MMM dd 'at' hh:mm a", Locale.getDefault())
+    }
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
             if (dismissValue == SwipeToDismissBoxValue.EndToStart || dismissValue == SwipeToDismissBoxValue.StartToEnd) {
@@ -844,8 +851,16 @@ fun CompletedReminderCard(
     onDelete: () -> Unit,
     onReuse: () -> Unit
 ) {
-    val scheduledFormat = SimpleDateFormat("MMM dd 'at' hh:mm a", Locale.getDefault())
-    val completedFormat = SimpleDateFormat("MMM dd, yyyy 'at' hh:mm a", Locale.getDefault())
+    val scheduledFormat = if (reminder.recurrenceType == RecurrenceType.ANNUAL) {
+        SimpleDateFormat("EEE, MMM dd ''yy 'at' hh:mm a", Locale.getDefault())
+    } else {
+        SimpleDateFormat("EEE, MMM dd 'at' hh:mm a", Locale.getDefault())
+    }
+    val completedFormat = if (reminder.recurrenceType == RecurrenceType.ANNUAL) {
+        SimpleDateFormat("EEE, MMM dd ''yy 'at' hh:mm a", Locale.getDefault())
+    } else {
+        SimpleDateFormat("EEE, MMM dd 'at' hh:mm a", Locale.getDefault())
+    }
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
             if (dismissValue == SwipeToDismissBoxValue.EndToStart || dismissValue == SwipeToDismissBoxValue.StartToEnd) {
