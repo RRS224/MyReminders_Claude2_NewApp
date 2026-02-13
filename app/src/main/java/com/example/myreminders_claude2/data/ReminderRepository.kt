@@ -1,6 +1,7 @@
 package com.example.myreminders_claude2.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 class ReminderRepository(
     private val reminderDao: ReminderDao,
@@ -319,15 +320,30 @@ class ReminderRepository(
 
     /**
      * Permanently delete a single reminder
+     * ✅ FIXED: Deletes from Firestore FIRST, then Room
      */
     suspend fun permanentlyDeleteReminder(reminderId: Long) {
+        // ✅ Record as permanently deleted FIRST
+        reminderDao.recordPermanentlyDeleted(PermanentlyDeleted(reminderId))
+
+        syncManager?.deleteReminderFromCloud(reminderId)
+        kotlinx.coroutines.delay(300)
         reminderDao.permanentlyDeleteReminder(reminderId)
     }
 
-    /**
-     * Permanently delete all deleted reminders
-     */
     suspend fun permanentlyDeleteAll() {
+        val deletedRemindersList = deletedReminders.first()
+
+        // ✅ Record all as permanently deleted FIRST
+        deletedRemindersList.forEach { reminder ->
+            reminderDao.recordPermanentlyDeleted(PermanentlyDeleted(reminder.id))
+        }
+
+        deletedRemindersList.forEach { reminder ->
+            syncManager?.deleteReminderFromCloud(reminder.id)
+        }
+
+        kotlinx.coroutines.delay(500)
         reminderDao.permanentlyDeleteAll()
     }
 }

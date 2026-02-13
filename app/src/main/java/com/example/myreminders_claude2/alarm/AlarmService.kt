@@ -67,18 +67,12 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
 
         return when (action) {
             ACTION_DISMISS -> {
-                // Dismiss button was tapped - mark as complete and stop everything
                 handleDismiss(isManual = true)
                 START_NOT_STICKY
             }
             ACTION_STOP_ALARM -> {
-                // Notification body was tapped - stop sound and open full screen
                 val reminderIdFromIntent: Long = intent.getLongExtra("REMINDER_ID", -1)
-
-                // Stop the alarm sound
                 stopAlarmSound()
-
-                // Open MainActivity with the reminder to show full screen
                 if (reminderIdFromIntent != -1L) {
                     val openIntent = Intent(this, MainActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -86,28 +80,21 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
                     }
                     startActivity(openIntent)
                 }
-
                 START_NOT_STICKY
             }
             else -> {
-                // New alarm triggered
                 currentReminderId = intent?.getLongExtra("REMINDER_ID", -1) ?: -1
                 val title: String = intent?.getStringExtra("REMINDER_TITLE") ?: "Reminder"
                 val notes: String = intent?.getStringExtra("REMINDER_NOTES") ?: ""
                 isVoiceEnabled = intent?.getBooleanExtra("VOICE_ENABLED", true) ?: true
 
-                reminderText = if (notes.isNotBlank()) {
-                    "$title. $notes"
-                } else {
-                    title
-                }
+                reminderText = if (notes.isNotBlank()) "$title. $notes" else title
 
                 val notification = createNotification(title, notes, currentReminderId)
                 startForeground(NOTIFICATION_ID, notification)
 
                 playAlarmSound()
                 startVibration()
-
                 scheduleAutoSnooze()
 
                 START_NOT_STICKY
@@ -143,17 +130,14 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
                 val newSnoozeCount: Int = it.snoozeCount + 1
                 val newDateTime: Long = System.currentTimeMillis() + SNOOZE_INTERVAL
 
-                // Update snooze count
                 database.reminderDao().updateSnoozeCount(currentReminderId, newSnoozeCount)
 
-                // Update the reminder's dateTime
                 val updated = it.copy(
                     dateTime = newDateTime,
                     snoozeCount = newSnoozeCount
                 )
                 database.reminderDao().updateReminder(updated)
 
-                // Reschedule alarm
                 val alarmScheduler = AlarmScheduler(applicationContext)
                 alarmScheduler.scheduleAlarm(updated)
             }
@@ -165,12 +149,50 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             val database = ReminderDatabase.getDatabase(applicationContext)
             val completedAt: Long = System.currentTimeMillis()
             val dismissalReason: String = if (isManual) "MANUAL" else "AUTO_SNOOZED"
+
             database.reminderDao().markAsCompleted(
                 currentReminderId,
                 true,
                 completedAt,
                 dismissalReason
             )
+
+            if (!isManual) {
+                val reminderDao = database.reminderDao()
+                val reminder = reminderDao.getReminderByIdSync(currentReminderId)
+
+                if (reminder != null &&
+                    reminder.recurrenceType != "ONE_TIME" &&
+                    reminder.recurringGroupId != null) {
+
+                    val baseTime = maxOf(reminder.dateTime, System.currentTimeMillis())
+                    val calendar = java.util.Calendar.getInstance()
+                    calendar.timeInMillis = baseTime
+
+                    when (reminder.recurrenceType) {
+                        "HOURLY" -> calendar.add(java.util.Calendar.HOUR_OF_DAY, reminder.recurrenceInterval)
+                        "DAILY" -> calendar.add(java.util.Calendar.DAY_OF_YEAR, reminder.recurrenceInterval)
+                        "WEEKLY" -> calendar.add(java.util.Calendar.WEEK_OF_YEAR, reminder.recurrenceInterval)
+                        "MONTHLY" -> calendar.add(java.util.Calendar.MONTH, reminder.recurrenceInterval)
+                        "ANNUAL" -> calendar.add(java.util.Calendar.YEAR, reminder.recurrenceInterval)
+                    }
+
+                    val nextReminder = reminder.copy(
+                        id = 0,
+                        dateTime = calendar.timeInMillis,
+                        isCompleted = false,
+                        isDeleted = false,
+                        completedAt = null,
+                        dismissalReason = null,
+                        snoozeCount = 0,
+                        updatedAt = System.currentTimeMillis()
+                    )
+
+                    val newId = reminderDao.insertReminder(nextReminder)
+                    val alarmScheduler = AlarmScheduler(applicationContext)
+                    alarmScheduler.scheduleAlarm(nextReminder.copy(id = newId))
+                }
+            }
         }
 
         stopAlarmSound()
@@ -178,7 +200,6 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun createNotification(title: String, notes: String, reminderId: Long): android.app.Notification {
-        // Intent for tapping the notification body - stops alarm and opens full screen
         val stopAndOpenIntent = Intent(this, AlarmService::class.java).apply {
             action = ACTION_STOP_ALARM
             putExtra("REMINDER_ID", reminderId)
@@ -191,14 +212,13 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Intent for dismiss button - broadcasts to AlarmDismissReceiver
         val dismissIntent = Intent(this, AlarmDismissReceiver::class.java).apply {
             putExtra("REMINDER_ID", reminderId)
         }
 
         val dismissPendingIntent: PendingIntent = PendingIntent.getBroadcast(
             this,
-            reminderId.toInt() + 10000, // Different request code
+            reminderId.toInt() + 10000,
             dismissIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -210,15 +230,14 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setContentIntent(openPendingIntent) // Tapping notification stops sound & opens app
+            .setContentIntent(openPendingIntent)
             .setAutoCancel(false)
             .setOngoing(false)
 
-        // Add dismiss action button
         builder.addAction(
             android.R.drawable.ic_menu_close_clear_cancel,
             "Dismiss",
-            dismissPendingIntent // Tapping button dismisses
+            dismissPendingIntent
         )
 
         if (notes.isNotBlank()) {
@@ -281,9 +300,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         try {
             val pattern = longArrayOf(0, 500, 500, 500, 500, 500)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(
-                    VibrationEffect.createWaveform(pattern, 0)
-                )
+                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
             } else {
                 @Suppress("DEPRECATION")
                 vibrator?.vibrate(pattern, 0)
@@ -306,9 +323,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         handler.removeCallbacksAndMessages(null)
 
         mediaPlayer?.apply {
-            if (isPlaying) {
-                stop()
-            }
+            if (isPlaying) stop()
             release()
         }
         mediaPlayer = null

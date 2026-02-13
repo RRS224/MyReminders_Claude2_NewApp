@@ -3,6 +3,7 @@ package com.example.myreminders_claude2.data
 import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.*
@@ -40,11 +41,14 @@ class SyncManager(
         Log.d(TAG, "Starting sync for user: $uid")
 
         scope.launch {
+            // ✅ FIXED: Upload local data FIRST, then start listeners
+            // This prevents old Firebase data from overwriting newer local data!
             syncLocalToCloud()
+            Log.d(TAG, "Local upload complete - now starting listeners")
+            setupRealtimeListeners(uid)
         }
-
-        setupRealtimeListeners(uid)
     }
+
     fun stopSync() {
         Log.d(TAG, "Stopping sync")
         remindersListener?.remove()
@@ -77,6 +81,7 @@ class SyncManager(
             Log.e(TAG, "Error syncing to cloud", e)
         }
     }
+
     suspend fun uploadReminder(reminder: Reminder, uid: String? = null) {
         val effectiveUid = uid ?: userId ?: return
         try {
@@ -120,6 +125,7 @@ class SyncManager(
     }
 
     private fun setupRealtimeListeners(uid: String) {
+        // ✅ FIXED: Now handles ADDED, MODIFIED, and REMOVED separately
         remindersListener = firestore.collection(COLLECTION_REMINDERS)
             .whereEqualTo("userId", uid)
             .addSnapshotListener { snapshot, error ->
@@ -130,8 +136,21 @@ class SyncManager(
 
                 snapshot?.documentChanges?.forEach { change ->
                     scope.launch {
-                        val firestoreReminder = change.document.toObject(FirestoreReminder::class.java)
-                        handleReminderChange(firestoreReminder)
+                        when (change.type) {
+                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
+                                // Sync from cloud to Room
+                                val firestoreReminder = change.document.toObject(FirestoreReminder::class.java)
+                                handleReminderChange(firestoreReminder)
+                            }
+                            DocumentChange.Type.REMOVED -> {
+                                // Delete from Room when deleted from cloud
+                                val reminderId = change.document.id.toLongOrNull()
+                                if (reminderId != null) {
+                                    reminderDao.permanentlyDeleteReminder(reminderId)
+                                    Log.d(TAG, "Deleted reminder from Room (cloud removal): $reminderId")
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -173,14 +192,20 @@ class SyncManager(
 
     private suspend fun handleReminderChange(firestoreReminder: FirestoreReminder) {
         val localReminder = firestoreReminder.toRoom()
+
+        // ✅ Check if permanently deleted - never bring it back!
+        val isPermanentlyDeleted = reminderDao.isPermanentlyDeleted(localReminder.id)
+        if (isPermanentlyDeleted > 0) {
+            Log.d(TAG, "Skipping permanently deleted reminder: ${localReminder.title}")
+            return
+        }
+
         val existing = reminderDao.getReminderByIdSync(localReminder.id)
 
         if (existing == null) {
-            // New reminder from cloud - add it
             reminderDao.insertReminder(localReminder)
             Log.d(TAG, "Downloaded new reminder: ${localReminder.title}")
         } else {
-            // Only update if cloud version is genuinely newer
             if (localReminder.updatedAt > existing.updatedAt) {
                 reminderDao.updateReminder(localReminder)
                 Log.d(TAG, "Updated reminder from cloud (newer): ${localReminder.title}")
@@ -225,19 +250,29 @@ class SyncManager(
 
 // Extension functions for converting between Room and Firestore models
 
-// Extension functions for converting between Room and Firestore models
-
 fun Reminder.toFirestore(userId: String) = FirestoreReminder(
     id = id.toString(),
     title = title,
     description = notes,
-    dateTime = dateTime.let { Timestamp(Date(it)) },
+    dateTime = Timestamp(Date(dateTime)),
     category = mainCategory,
-    isCompleted = isCompleted,
-    isDeleted = isDeleted,
+    completed = isCompleted,
+    deleted = isDeleted,
     createdAt = Timestamp(Date(createdAt)),
     updatedAt = Timestamp(Date(updatedAt)),
-    userId = userId
+    userId = userId,
+    // ✅ All missing fields now saved:
+    completedAt = completedAt?.let { Timestamp(Date(it)) },
+    deletedAt = deletedAt?.let { Timestamp(Date(it)) },
+    dismissalReason = dismissalReason,
+    recurrenceType = recurrenceType,
+    recurrenceInterval = recurrenceInterval,
+    recurrenceDayOfWeek = recurrenceDayOfWeek,
+    recurrenceDayOfMonth = recurrenceDayOfMonth,
+    recurringGroupId = recurringGroupId,
+    subCategory = subCategory,
+    isVoiceEnabled = isVoiceEnabled,
+    snoozeCount = snoozeCount
 )
 
 fun FirestoreReminder.toRoom() = Reminder(
@@ -246,10 +281,22 @@ fun FirestoreReminder.toRoom() = Reminder(
     notes = description,
     dateTime = dateTime?.toDate()?.time ?: System.currentTimeMillis(),
     mainCategory = category,
-    isCompleted = isCompleted,
-    isDeleted = isDeleted,
+    isCompleted = completed,
+    isDeleted = deleted,
     createdAt = createdAt.toDate().time,
-    updatedAt = updatedAt.toDate().time
+    updatedAt = updatedAt.toDate().time,
+    // ✅ All missing fields now restored:
+    completedAt = completedAt?.toDate()?.time,
+    deletedAt = deletedAt?.toDate()?.time,
+    dismissalReason = dismissalReason,
+    recurrenceType = recurrenceType,
+    recurrenceInterval = recurrenceInterval,
+    recurrenceDayOfWeek = recurrenceDayOfWeek,
+    recurrenceDayOfMonth = recurrenceDayOfMonth,
+    recurringGroupId = recurringGroupId,
+    subCategory = subCategory,
+    isVoiceEnabled = isVoiceEnabled,
+    snoozeCount = snoozeCount
 )
 
 fun Category.toFirestore(userId: String) = FirestoreCategory(
