@@ -106,7 +106,7 @@ interface ReminderDao {
     @Query("UPDATE reminders SET isDeleted = 1, deletedAt = :timestamp WHERE id IN (:ids)")
     suspend fun softDeleteReminders(ids: List<Long>, timestamp: Long = System.currentTimeMillis())
 
-    @Query("UPDATE reminders SET isDeleted = 0, deletedAt = null WHERE id = :id")
+    @Query("UPDATE reminders SET isDeleted = 0, deletedAt = null, isCompleted = 0, completedAt = null WHERE id = :id")
     suspend fun undeleteReminder(id: Long)
 
     @Query("DELETE FROM reminders WHERE isDeleted = 1 AND deletedAt < :cutoffTime")

@@ -397,7 +397,7 @@ fun MainNavigation(
                     reminderId = 0L, // New reminder (reuse)
                     initialTitle = rem.title,
                     initialNotes = rem.notes,
-                    initialDateTime = System.currentTimeMillis() + (60 * 60 * 1000),
+                    initialDateTime = System.currentTimeMillis(),
                     initialRecurrenceType = rem.recurrenceType,
                     initialRecurrenceInterval = rem.recurrenceInterval,
                     initialMainCategory = rem.mainCategory,
