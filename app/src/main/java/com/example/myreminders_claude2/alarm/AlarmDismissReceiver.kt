@@ -23,13 +23,8 @@ class AlarmDismissReceiver : BroadcastReceiver() {
                 // Get the reminder BEFORE marking as completed
                 val reminder = reminderDao.getReminderByIdSync(reminderId)
 
-                // Mark as completed
-                reminderDao.markAsCompleted(
-                    reminderId,
-                    true,
-                    System.currentTimeMillis(),
-                    "MANUAL"
-                )
+                // ✅ Dismissed reminders go to Completed tab
+                reminderDao.softDeleteReminder(reminderId, System.currentTimeMillis())
 
                 // ✅ Create next occurrence for recurring reminders
                 if (reminder != null &&

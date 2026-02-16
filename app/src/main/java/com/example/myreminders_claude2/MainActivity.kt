@@ -494,7 +494,7 @@ fun MainNavigation(
                         snoozeCount = reminder!!.snoozeCount,
                         onDismiss = {
                             scope.launch {
-                                viewModel.markAsCompleted(reminder!!.id, true, "MANUAL")
+                                viewModel.softDeleteReminder(reminder!!.id)
                                 navController.popBackStack()
                             }
                         },
@@ -1350,7 +1350,7 @@ fun HomeScreen(
                         onClick = { selectedTab = 2 },
                         text = {
                             Text(
-                                "Completed (${completedReminders.size})",
+                                "Missed (${completedReminders.size})",
                                 fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal
                             )
                         }
@@ -1360,7 +1360,7 @@ fun HomeScreen(
                         onClick = { selectedTab = 3 },
                         text = {
                             Text(
-                                "Deleted (${deletedReminders.size})",
+                                "Completed (${deletedReminders.size})",
                                 fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal,
                                 fontSize = 12.sp
                             )

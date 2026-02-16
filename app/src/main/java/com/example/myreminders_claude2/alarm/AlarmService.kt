@@ -34,6 +34,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
     private var isVoiceEnabled: Boolean = true
     private var reminderText: String = ""
     private var currentReminderId: Long = -1
+    private var currentSnoozeCount: Int = 0
     private val handler: Handler = Handler(Looper.getMainLooper())
 
     companion object {
@@ -41,7 +42,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         const val NOTIFICATION_ID = 1
         const val ACTION_DISMISS = "com.example.myreminders_claude2.ACTION_DISMISS"
         const val ACTION_STOP_ALARM = "com.example.myreminders_claude2.ACTION_STOP_ALARM"
-        private const val MAX_AUTO_SNOOZES = 3
+        private const val MAX_AUTO_SNOOZES = 2
         private const val RING_DURATION = 30 * 1000L
         private const val SNOOZE_INTERVAL = 5 * 60 * 1000L
     }
@@ -84,13 +85,15 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             }
             else -> {
                 currentReminderId = intent?.getLongExtra("REMINDER_ID", -1) ?: -1
+                currentSnoozeCount = intent?.getIntExtra("SNOOZE_COUNT", 0) ?: 0
                 val title: String = intent?.getStringExtra("REMINDER_TITLE") ?: "Reminder"
                 val notes: String = intent?.getStringExtra("REMINDER_NOTES") ?: ""
                 isVoiceEnabled = intent?.getBooleanExtra("VOICE_ENABLED", true) ?: true
 
                 reminderText = if (notes.isNotBlank()) "$title. $notes" else title
 
-                val notification = createNotification(title, notes, currentReminderId)
+                // ✅ Show "Second Reminder" / "Third Reminder" in notification
+                val notification = createNotification(title, notes, currentReminderId, currentSnoozeCount)
                 startForeground(NOTIFICATION_ID, notification)
 
                 playAlarmSound()
@@ -150,13 +153,27 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             val completedAt: Long = System.currentTimeMillis()
             val dismissalReason: String = if (isManual) "MANUAL" else "AUTO_SNOOZED"
 
-            database.reminderDao().markAsCompleted(
-                currentReminderId,
-                true,
-                completedAt,
-                dismissalReason
-            )
+            if (isManual) {
+                // ✅ Manually dismissed → goes to Completed tab
+                database.reminderDao().softDeleteReminder(currentReminderId, completedAt)
+            } else {
+                // ✅ Unattended (rang 3 times, ignored) → goes to Missed tab
+                database.reminderDao().markAsCompleted(
+                    currentReminderId,
+                    true,
+                    completedAt,
+                    dismissalReason
+                )
+                // ✅ Update updatedAt so Firebase sync doesn't revert it
+                val reminder = database.reminderDao().getReminderByIdSync(currentReminderId)
+                reminder?.let {
+                    database.reminderDao().updateReminder(
+                        it.copy(updatedAt = System.currentTimeMillis())
+                    )
+                }
+            }
 
+            // ✅ Create next occurrence for recurring reminders (only when auto-dismissed)
             if (!isManual) {
                 val reminderDao = database.reminderDao()
                 val reminder = reminderDao.getReminderByIdSync(currentReminderId)
@@ -199,7 +216,20 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         stopSelf()
     }
 
-    private fun createNotification(title: String, notes: String, reminderId: Long): android.app.Notification {
+    private fun createNotification(
+        title: String,
+        notes: String,
+        reminderId: Long,
+        snoozeCount: Int = 0
+    ): android.app.Notification {
+        // ✅ Show "Second Reminder" / "Third Reminder" prefix
+        val ringLabel = when (snoozeCount) {
+            1 -> "Second Reminder: "
+            2 -> "Third Reminder: "
+            else -> ""
+        }
+        val displayTitle = "$ringLabel$title"
+
         val stopAndOpenIntent = Intent(this, AlarmService::class.java).apply {
             action = ACTION_STOP_ALARM
             putExtra("REMINDER_ID", reminderId)
@@ -225,7 +255,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(title)
+            .setContentTitle(displayTitle)
             .setContentText(notes.ifBlank { "Tap to view" })
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -244,7 +274,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             builder.setStyle(
                 NotificationCompat.BigTextStyle()
                     .bigText(notes)
-                    .setBigContentTitle(title)
+                    .setBigContentTitle(displayTitle)
             )
         }
 

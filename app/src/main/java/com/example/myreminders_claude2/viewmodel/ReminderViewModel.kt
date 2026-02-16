@@ -578,6 +578,12 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
     /**
      * Permanently delete a single reminder
      */
+    fun softDeleteReminder(reminderId: Long) {
+        viewModelScope.launch {
+            reminderRepository.softDeleteReminder(reminderId)
+        }
+    }
+
     fun permanentlyDeleteSingle(reminderId: Long) {
         viewModelScope.launch {
             reminderRepository.permanentlyDeleteReminder(reminderId)

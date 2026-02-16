@@ -30,6 +30,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 val title = intent.getStringExtra("REMINDER_TITLE") ?: "Reminder"
                 val notes = intent.getStringExtra("REMINDER_NOTES") ?: ""
                 val voiceEnabled = intent.getBooleanExtra("VOICE_ENABLED", true)
+                val snoozeCount = intent.getIntExtra("SNOOZE_COUNT", 0) // ✅ Get snooze count
 
                 Log.d("AlarmReceiver", "Starting alarm service for reminder: $title (ID: $reminderId)")
 
@@ -38,6 +39,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     putExtra("REMINDER_TITLE", title)
                     putExtra("REMINDER_NOTES", notes)
                     putExtra("VOICE_ENABLED", voiceEnabled)
+                    putExtra("SNOOZE_COUNT", snoozeCount) // ✅ Pass snooze count to service
                 }
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

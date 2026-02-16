@@ -30,6 +30,7 @@ class AlarmScheduler(private val context: Context) {
             putExtra("REMINDER_TITLE", reminder.title)
             putExtra("REMINDER_NOTES", reminder.notes)
             putExtra("VOICE_ENABLED", reminder.isVoiceEnabled)
+            putExtra("SNOOZE_COUNT", reminder.snoozeCount) // ✅ Pass snooze count
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
