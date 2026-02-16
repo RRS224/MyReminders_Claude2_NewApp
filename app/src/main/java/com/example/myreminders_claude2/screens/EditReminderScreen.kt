@@ -469,7 +469,7 @@ fun EditReminderScreen(
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            "Read aloud when alarm fires",
+                            "Read aloud when alarm rings",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

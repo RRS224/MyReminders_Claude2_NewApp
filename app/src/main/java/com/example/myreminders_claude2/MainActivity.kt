@@ -7,10 +7,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.ui.unit.sp
 import com.example.myreminders_claude2.data.RecurrenceType
 import androidx.compose.foundation.clickable
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -150,6 +157,7 @@ fun MyRemindersApp(
         }
         authViewModel.onSignOut = {
             viewModel.stopSync()
+            hasSkippedSignIn = false  // ✅ Returns to SignIn screen after signing out
         }
     }
 
@@ -165,12 +173,15 @@ fun MyRemindersApp(
                     prefsManager.hasCompletedOnboarding = true
                     prefsManager.hasSkippedPermissions = true
                     showOnboarding = false
-                }
-            )
+                })
+
         }
         !authState.isSignedIn && !hasSkippedSignIn -> {
             SignInScreen(
                 onSignInSuccess = {
+                    hasSkippedSignIn = true  // ✅ Navigate away after successful sign in
+                },
+                onSkip = {
                     hasSkippedSignIn = true
                 }
             )
@@ -333,7 +344,7 @@ fun MainNavigation(
                 onNavigateBack = { navController.popBackStack() },
                 prefilledTitle = title,
                 prefilledNotes = notes,
-                prefilledDateTime = if (dateTime > 0) dateTime else System.currentTimeMillis() + (60 * 60 * 1000),
+                prefilledDateTime = if (dateTime > 0) dateTime else System.currentTimeMillis() ,
                 prefilledCategory = category,
                 prefilledSubCategory = subCategory.ifBlank { null },
                 prefilledRecurrenceType = recurrenceType,
@@ -1121,6 +1132,22 @@ fun HomeScreen(
     var showMenu by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            try {
+                val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                val account = task.getResult(ApiException::class.java)
+                val idToken = account.idToken
+                if (idToken != null) {
+                    authViewModel.signInWithGoogle(idToken)
+                }
+            } catch (e: ApiException) {
+                Log.e("SignIn", "Sign in failed", e)
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         permissionStatus.value = PermissionChecker.checkAllPermissions(context)
@@ -1209,7 +1236,9 @@ fun HomeScreen(
                                 }
                             } else {
                                 // Not Signed In - Show Sign In Button
-                                TextButton(onClick = { /* Navigate to sign in */ }) {
+                                TextButton(onClick = {
+                                    authViewModel.signOut()
+                                }) {
                                     Text("Sign In", color = MaterialTheme.colorScheme.primary)
                                 }
                             }
@@ -1246,50 +1275,50 @@ fun HomeScreen(
                             )
                         }
 
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text(
-                                            "Permissions",
-                                            style = MaterialTheme.typography.bodyLarge.copy(
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        )
-                                        if (permissionStatus.value.hasAnyMissing) {
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
                                             Text(
-                                                "⚠️ Some missing",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.error
+                                                "Permissions",
+                                                style = MaterialTheme.typography.bodyLarge.copy(
+                                                    fontWeight = FontWeight.Medium
+                                                )
                                             )
-                                        } else {
-                                            Text(
-                                                "✓ All granted",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
+                                            if (permissionStatus.value.hasAnyMissing) {
+                                                Text(
+                                                    "⚠️ Some missing",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.error
+                                                )
+                                            } else {
+                                                Text(
+                                                    "✓ All granted",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
                                         }
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onNavigateToPermissions()
                                     }
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    onNavigateToPermissions()
-                                }
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    modifier = Modifier.shadow(
-                        elevation = 2.dp,
-                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            titleContentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        modifier = Modifier.shadow(
+                            elevation = 2.dp,
+                            spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                        )
                     )
-                )
 
                 TabRow(
                     selectedTabIndex = selectedTab,

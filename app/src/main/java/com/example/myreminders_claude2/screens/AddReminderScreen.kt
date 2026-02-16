@@ -33,7 +33,7 @@ fun AddReminderScreen(
     onNavigateBack: () -> Unit,
     prefilledTitle: String = "",
     prefilledNotes: String = "",
-    prefilledDateTime: Long = System.currentTimeMillis() + (60 * 60 * 1000),
+    prefilledDateTime: Long = System.currentTimeMillis() ,
     prefilledCategory: String = "GENERAL",
     prefilledSubCategory: String? = null,
     prefilledRecurrenceType: String = RecurrenceType.ONE_TIME,
@@ -275,7 +275,7 @@ fun AddReminderScreen(
                 ),
                 onClick = {
                     val calendar = Calendar.getInstance()
-                    calendar.timeInMillis = selectedDateTime
+
 
                     DatePickerDialog(
                         context,
@@ -466,7 +466,7 @@ fun AddReminderScreen(
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            "Read aloud when alarm fires",
+                            "Read aloud when alarm rings",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

@@ -42,7 +42,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         const val ACTION_DISMISS = "com.example.myreminders_claude2.ACTION_DISMISS"
         const val ACTION_STOP_ALARM = "com.example.myreminders_claude2.ACTION_STOP_ALARM"
         private const val MAX_AUTO_SNOOZES = 3
-        private const val RING_DURATION = 1 * 60 * 1000L
+        private const val RING_DURATION = 30 * 1000L
         private const val SNOOZE_INTERVAL = 5 * 60 * 1000L
     }
 

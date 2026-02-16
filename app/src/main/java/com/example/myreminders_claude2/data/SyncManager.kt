@@ -193,16 +193,25 @@ class SyncManager(
     private suspend fun handleReminderChange(firestoreReminder: FirestoreReminder) {
         val localReminder = firestoreReminder.toRoom()
 
-        // ✅ Check if permanently deleted - never bring it back!
+        // ✅ Check permanently deleted table first
         val isPermanentlyDeleted = reminderDao.isPermanentlyDeleted(localReminder.id)
         if (isPermanentlyDeleted > 0) {
             Log.d(TAG, "Skipping permanently deleted reminder: ${localReminder.title}")
+            // Clean up Firebase too
+            deleteReminderFromCloud(localReminder.id)
             return
         }
 
         val existing = reminderDao.getReminderByIdSync(localReminder.id)
 
         if (existing == null) {
+            // ✅ If reminder is deleted in Firebase and doesn't exist locally,
+            // delete from Firebase instead of re-adding to Room!
+            if (localReminder.isDeleted) {
+                Log.d(TAG, "Reminder is deleted in Firebase and not in Room - cleaning up Firebase: ${localReminder.title}")
+                deleteReminderFromCloud(localReminder.id)
+                return
+            }
             reminderDao.insertReminder(localReminder)
             Log.d(TAG, "Downloaded new reminder: ${localReminder.title}")
         } else {

@@ -21,7 +21,8 @@ import com.google.android.gms.common.api.ApiException
 
 @Composable
 fun SignInScreen(
-    onSignInSuccess: () -> Unit
+    onSignInSuccess: () -> Unit,
+    onSkip: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val authViewModel: AuthViewModel = viewModel()
@@ -132,7 +133,7 @@ fun SignInScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             TextButton(
-                onClick = { onSignInSuccess() },
+                onClick = { onSkip() },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Skip for now")
