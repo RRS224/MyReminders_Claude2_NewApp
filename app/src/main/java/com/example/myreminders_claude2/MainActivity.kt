@@ -14,6 +14,7 @@ import com.example.myreminders_claude2.data.RecurrenceType
 import androidx.compose.foundation.clickable
 import android.app.Activity
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -34,6 +35,8 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -53,6 +56,7 @@ import com.example.myreminders_claude2.data.Reminder
 import com.example.myreminders_claude2.screens.AddReminderScreen
 import com.example.myreminders_claude2.screens.CreateReminderTab
 import com.example.myreminders_claude2.screens.DeletedRemindersTab
+import com.example.myreminders_claude2.screens.StatsScreen
 import com.example.myreminders_claude2.screens.EditReminderScreen
 import com.example.myreminders_claude2.screens.ManageCategoriesScreen
 import com.example.myreminders_claude2.screens.PermissionOnboardingScreen
@@ -67,6 +71,7 @@ import com.example.myreminders_claude2.utils.PermissionChecker
 import com.example.myreminders_claude2.utils.PreferencesManager
 import com.example.myreminders_claude2.utils.VoiceParser
 import com.example.myreminders_claude2.utils.ThemePreferences
+import com.example.myreminders_claude2.screens.calculateStreak
 import com.example.myreminders_claude2.viewmodel.ReminderViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -87,6 +92,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
 
@@ -230,7 +241,8 @@ fun MainNavigation(
                 onNavigateToSettings = { navController.navigate("settings") },
                 onNavigateToEdit = { id -> navController.navigate("edit/$id") },
                 onNavigateToReuse = { id -> navController.navigate("reuse/$id") },
-                onNavigateToTemplates = { navController.navigate("selectTemplate") }
+                onNavigateToTemplates = { navController.navigate("selectTemplate") },
+                onNavigateToStats = { navController.navigate("stats") }
             )
         }
         composable("add") {
@@ -409,6 +421,18 @@ fun MainNavigation(
                 )
             }
         }
+        composable("stats") {
+            val activeReminders by viewModel.allActiveReminders.collectAsState(initial = emptyList())
+            val missedReminders by viewModel.completedReminders.collectAsState(initial = emptyList())
+            val doneReminders by viewModel.deletedReminders.collectAsState(initial = emptyList())
+            StatsScreen(
+                activeCount = activeReminders.size,
+                missedCount = missedReminders.size,
+                doneCount = doneReminders.size,
+                allReminders = activeReminders + missedReminders + doneReminders,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
         composable("permissions") {
             PermissionOnboardingScreen(
                 onComplete = {
@@ -423,7 +447,8 @@ fun MainNavigation(
                 onNavigateBack = { navController.popBackStack() },
                 onThemeChanged = onThemeChanged,
                 onNavigateToManageCategories = { navController.navigate("manageCategories") },
-                onNavigateToManageTemplates = { navController.navigate("manageTemplates") }
+                onNavigateToManageTemplates = { navController.navigate("manageTemplates") },
+                onNavigateToPermissions = { navController.navigate("permissions") }
             )
         }
         composable("manageCategories") {
@@ -603,7 +628,7 @@ fun EmptyState(isCompleted: Boolean) {
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = if (isCompleted) "No completed reminders" else "No active reminders",
+            text = if (isCompleted) "All caught up!" else "No active reminders",
             style = MaterialTheme.typography.headlineSmall.copy(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 24.sp
@@ -616,9 +641,9 @@ fun EmptyState(isCompleted: Boolean) {
 
         Text(
             text = if (isCompleted)
-                "Dismissed reminders will appear here"
+                "Reminders you miss will appear here.\nYou're doing great!"
             else
-                "Go to the Create tab to add\nyour first reminder",
+                "Tap Create to set your first reminder.\nWe'll make sure you don't forget.",
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontSize = 16.sp,
                 lineHeight = 24.sp
@@ -726,14 +751,15 @@ fun ActiveReminderCard(
                 .clickable { onEdit() },
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                    .compositeOver(MaterialTheme.colorScheme.surface)
             ),
             elevation = CardDefaults.cardElevation(
                 defaultElevation = 4.dp
             ),
             border = androidx.compose.foundation.BorderStroke(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
             )
         ) {
             Column(
@@ -820,7 +846,7 @@ fun ActiveReminderCard(
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontWeight = FontWeight.Medium
                         ),
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     IconButton(onClick = onDelete) {
@@ -861,7 +887,8 @@ fun ActiveReminderList(
 fun CompletedReminderCard(
     reminder: Reminder,
     onDelete: () -> Unit,
-    onReuse: () -> Unit
+    onReuse: () -> Unit,
+    onReschedule: () -> Unit
 ) {
     val scheduledFormat = if (reminder.recurrenceType == RecurrenceType.ANNUAL) {
         SimpleDateFormat("EEE, MMM dd ''yy 'at' hh:mm a", Locale.getDefault())
@@ -963,13 +990,18 @@ fun CompletedReminderCard(
                 ),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.10f)
+                    .compositeOver(MaterialTheme.colorScheme.surface)
+            ),
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.error.copy(alpha = 0.25f)
             )
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                      .padding(16.dp)
             ) {
                 // Header: Checkmark + Category Emoji + Type + Recurrence Badge
                 Row(
@@ -1029,10 +1061,10 @@ fun CompletedReminderCard(
                 Text(
                     text = reminder.title,
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold
                     ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 // Notes (if present)
@@ -1072,7 +1104,7 @@ fun CompletedReminderCard(
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontWeight = FontWeight.Medium
                             ),
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f)
                         )
 
@@ -1085,6 +1117,19 @@ fun CompletedReminderCard(
                         }
                     }
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onReschedule,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Reschedule")
+                }
             }
         }
     }
@@ -1094,7 +1139,8 @@ fun CompletedReminderCard(
 fun CompletedReminderList(
     reminders: List<Reminder>,
     onDeleteReminder: (Reminder) -> Unit,
-    onReuseReminder: (Reminder) -> Unit
+    onReuseReminder: (Reminder) -> Unit,
+    onRescheduleReminder: (Reminder) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -1105,7 +1151,8 @@ fun CompletedReminderList(
             CompletedReminderCard(
                 reminder = reminder,
                 onDelete = { onDeleteReminder(reminder) },
-                onReuse = { onReuseReminder(reminder) }
+                onReuse = { onReuseReminder(reminder) },
+                onReschedule = { onRescheduleReminder(reminder) }
             )
         }
     }
@@ -1122,17 +1169,28 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToEdit: (Long) -> Unit,
     onNavigateToReuse: (Long) -> Unit,
-    onNavigateToTemplates: () -> Unit
+    onNavigateToTemplates: () -> Unit,
+    onNavigateToStats: () -> Unit
 ) {
     val context = LocalContext.current
     val activeReminders by viewModel.allActiveReminders.collectAsState(initial = emptyList())
     val completedReminders by viewModel.completedReminders.collectAsState(initial = emptyList())
     val deletedReminders by viewModel.deletedReminders.collectAsState(initial = emptyList())
+    val allReminders = activeReminders + completedReminders + deletedReminders
     val permissionStatus =
         remember { mutableStateOf(PermissionChecker.checkAllPermissions(context)) }
     var showMenu by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
+
+    // Celebration bubble state
+    var celebrationMessage by remember { mutableStateOf<String?>(null) }
+    var showCelebration by remember { mutableStateOf(false) }
+
+    val celebrationPrefs = remember {
+        context.getSharedPreferences("celebration_prefs", Context.MODE_PRIVATE)
+    }
+
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -1154,161 +1212,168 @@ fun HomeScreen(
         permissionStatus.value = PermissionChecker.checkAllPermissions(context)
     }
 
-    Scaffold(
-        topBar = {
-            Column {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Text(
-                            "My Reminders",
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
+    // Celebration bubble logic
+    LaunchedEffect(allReminders) {
+        if (allReminders.isEmpty()) return@LaunchedEffect
+
+        val today = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
+        val lastShown = celebrationPrefs.getString("last_shown_date", "")
+        if (lastShown == today) return@LaunchedEffect
+
+        val totalManuallyDone = allReminders.count {
+            it.isDeleted && it.dismissalReason == "MANUAL"
+        }
+        val totalCompleted = allReminders.count { it.isCompleted && !it.isDeleted }
+        val totalDone = totalCompleted + totalManuallyDone
+        val streak = calculateStreak(allReminders)
+        val totalEverCreated = allReminders.size
+        val completionRate = if (totalEverCreated > 0)
+            ((totalDone).toFloat() / totalEverCreated * 100).toInt()
+        else 0
+
+        val message = when {
+            streak == 7 -> "🔥 7-day streak! You're on fire!"
+            streak == 14 -> "⚡ 14-day streak! Unstoppable!"
+            streak == 30 -> "💎 30-day streak! Legendary!"
+            streak == 3 -> "🔥 3-day streak! Keep it up!"
+            totalDone == 10 -> "✅ 10 reminders completed! Great start!"
+            totalDone == 50 -> "🏆 50 reminders completed! Amazing!"
+            totalDone == 100 -> "💯 100 reminders completed! You're a pro!"
+            completionRate == 100 && totalEverCreated >= 5 -> "💯 Perfect completion rate!"
+            totalEverCreated == 1 -> "🌱 First reminder created! Welcome!"
+            else -> null
+        }
+
+        if (message != null) {
+            celebrationPrefs.edit().putString("last_shown_date", today).apply()
+            celebrationMessage = message
+            showCelebration = true
+            delay(4000)
+            showCelebration = false
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(            topBar = {
+                Column {
+                    CenterAlignedTopAppBar(
+                        title = {
+                            Text(
+                                "My Reminders",
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
                             )
-                        )
-                    },
-                    actions = {
-                        // User Profile Menu
-                        val currentUser = FirebaseAuth.getInstance().currentUser
-                        var showUserMenu by remember { mutableStateOf(false) }
+                        },
+                        actions = {
+                            // User Profile Menu
+                            val currentUser = FirebaseAuth.getInstance().currentUser
+                            var showUserMenu by remember { mutableStateOf(false) }
 
-                        Box {
-                            if (currentUser != null) {
-                                // Signed In - Show Avatar
-                                IconButton(onClick = { showUserMenu = true }) {
-                                    AsyncImage(
-                                        model = currentUser.photoUrl,
-                                        contentDescription = "Profile",
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(CircleShape)
-                                            .border(
-                                                1.dp,
-                                                MaterialTheme.colorScheme.primary,
-                                                CircleShape
-                                            ),
-                                        contentScale = ContentScale.Crop,
-                                        error = painterResource(android.R.drawable.ic_menu_myplaces)
-                                    )
-                                }
-
-                                DropdownMenu(
-                                    expanded = showUserMenu,
-                                    onDismissRequest = { showUserMenu = false }
-                                ) {
-                                    // User Info
-                                    Column(
-                                        modifier = Modifier.padding(16.dp)
-                                    ) {
-                                        Text(
-                                            currentUser.displayName ?: "User",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            currentUser.email ?: "",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            "✓ Signed in with Google",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary
+                            Box {
+                                if (currentUser != null) {
+                                    // Signed In - Show Avatar
+                                    IconButton(onClick = { showUserMenu = true }) {
+                                        AsyncImage(
+                                            model = currentUser.photoUrl,
+                                            contentDescription = "Profile",
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clip(CircleShape)
+                                                .border(
+                                                    1.dp,
+                                                    MaterialTheme.colorScheme.primary,
+                                                    CircleShape
+                                                ),
+                                            contentScale = ContentScale.Crop,
+                                            error = painterResource(android.R.drawable.ic_menu_myplaces)
                                         )
                                     }
 
-                                    HorizontalDivider()
-
-                                    // Sign Out
-                                    DropdownMenuItem(
-                                        text = { Text("Sign out") },
-                                        onClick = {
-                                            showUserMenu = false
-                                            authViewModel.signOut()
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.ExitToApp,
-                                                contentDescription = null
+                                    DropdownMenu(
+                                        expanded = showUserMenu,
+                                        onDismissRequest = { showUserMenu = false }
+                                    ) {
+                                        // User Info
+                                        Column(
+                                            modifier = Modifier.padding(16.dp)
+                                        ) {
+                                            Text(
+                                                currentUser.displayName ?: "User",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                currentUser.email ?: "",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                "✓ Signed in with Google",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.primary
                                             )
                                         }
-                                    )
-                                }
-                            } else {
-                                // Not Signed In - Show Sign In Button
-                                TextButton(onClick = {
-                                    authViewModel.signOut()
-                                }) {
-                                    Text("Sign In", color = MaterialTheme.colorScheme.primary)
-                                }
-                            }
-                        }
 
-                        // Settings Icon (direct access)
-                        IconButton(onClick = onNavigateToSettings) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings"
-                            )
-                        }
+                                        HorizontalDivider()
 
-                        // Clear All button (only on Completed tab)
-                        if (selectedTab == 2 && completedReminders.isNotEmpty()) {
-                            IconButton(onClick = {
-                                scope.launch {
-                                    viewModel.clearAllCompleted()
-                                }
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.DeleteSweep,
-                                    contentDescription = "Clear All Completed",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
-
-                        // Overflow Menu
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Menu"
-                            )
-                        }
-
-                            DropdownMenu(
-                                expanded = showMenu,
-                                onDismissRequest = { showMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text(
-                                                "Permissions",
-                                                style = MaterialTheme.typography.bodyLarge.copy(
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                            )
-                                            if (permissionStatus.value.hasAnyMissing) {
-                                                Text(
-                                                    "⚠️ Some missing",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.error
-                                                )
-                                            } else {
-                                                Text(
-                                                    "✓ All granted",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.primary
+                                        // Sign Out
+                                        DropdownMenuItem(
+                                            text = { Text("Sign out") },
+                                            onClick = {
+                                                showUserMenu = false
+                                                authViewModel.signOut()
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.ExitToApp,
+                                                    contentDescription = null
                                                 )
                                             }
-                                        }
-                                    },
-                                    onClick = {
-                                        showMenu = false
-                                        onNavigateToPermissions()
+                                        )
                                     }
+                                } else {
+                                    // Not Signed In - Show Sign In Button
+                                    TextButton(onClick = {
+                                        authViewModel.signOut()
+                                    }) {
+                                        Text("Sign In", color = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            }
+
+                            // Settings Icon (direct access)
+                            IconButton(onClick = onNavigateToSettings) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Settings"
                                 )
+                            }
+
+                            // Stats Trophy Icon
+                            IconButton(onClick = onNavigateToStats) {
+                                Icon(
+                                    imageVector = Icons.Default.EmojiEvents,
+                                    contentDescription = "Stats",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            // Clear All button (only on Completed tab)
+                            if (selectedTab == 2 && completedReminders.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    scope.launch {
+                                        viewModel.clearAllCompleted()
+                                    }
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Default.DeleteSweep,
+                                        contentDescription = "Clear All Completed",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
                         },
                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -1321,126 +1386,203 @@ fun HomeScreen(
                         )
                     )
 
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.primary
-                ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        text = {
-                            Text(
-                                "Create",
-                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        text = {
-                            Text(
-                                "Active (${activeReminders.size})",
-                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        text = {
-                            Text(
-                                "Missed (${completedReminders.size})",
-                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 3,
-                        onClick = { selectedTab = 3 },
-                        text = {
-                            Text(
-                                "Done (${deletedReminders.size})",
-                                fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 12.sp
-                            )
-                        }
-                    )
-                }
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            if (permissionStatus.value.hasAnyMissing && selectedTab == 1) {
-                PermissionWarningBanner(
-                    onFixClick = onNavigateToPermissions
-                )
-            }
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                    ) {
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        "Create",
+                                        fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        )
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        "Active",
+                                        fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        "(${activeReminders.size})",
+                                        fontSize = 10.sp,
+                                        color = if (selectedTab == 1)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        )
+                        Tab(
+                            selected = selectedTab == 2,
+                            onClick = { selectedTab = 2 },
+                            text = {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        "Missed",
+                                        fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        "(${completedReminders.size})",
+                                        fontSize = 10.sp,
+                                        color = if (selectedTab == 2)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        )
+                        Tab(
+                            selected = selectedTab == 3,
+                            onClick = { selectedTab = 3 },
+                            text = {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        "Done",
+                                        fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        "(${deletedReminders.size})",
+                                        fontSize = 10.sp,
+                                        color = if (selectedTab == 3)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        )
 
-            Box(
+                    }
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.background
+        ) { paddingValues ->
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.background,
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.05f)
-                            )
-                        )
-                    )
+                    .padding(paddingValues)
             ) {
-                when (selectedTab) {
-                    0 -> {
-                        // Create Tab
-                        CreateReminderTab(
-                            onNavigateToManual = onNavigateToAdd,
-                            onNavigateToVoice = onNavigateToVoiceInput,
-                            onNavigateToTemplates = onNavigateToTemplates
+                if (permissionStatus.value.hasAnyMissing && selectedTab == 1) {
+                    PermissionWarningBanner(
+                        onFixClick = onNavigateToPermissions
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.background,
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.05f)
+                                )
+                            )
                         )
-                    }
-
-                    1 -> {
-                        // Active Tab
-                        if (activeReminders.isEmpty()) {
-                            EmptyState(isCompleted = false)
-                        } else {
-                            ActiveReminderList(
-                                reminders = activeReminders,
-                                onDeleteReminder = { viewModel.deleteReminder(it) },
-                                onEditReminder = { onNavigateToEdit(it.id) }
+                ) {
+                    when (selectedTab) {
+                        0 -> {
+                            // Create Tab
+                            CreateReminderTab(
+                                onNavigateToManual = onNavigateToAdd,
+                                onNavigateToVoice = onNavigateToVoiceInput,
+                                onNavigateToTemplates = onNavigateToTemplates
                             )
                         }
-                    }
 
-                    2 -> {
-                        // Missed Tab
-                        if (completedReminders.isEmpty()) {
-                            EmptyState(isCompleted = true)
-                        } else {
-                            CompletedReminderList(
-                                reminders = completedReminders,
-                                onDeleteReminder = { viewModel.deleteReminder(it) },
-                                onReuseReminder = { onNavigateToReuse(it.id) }
+                        1 -> {
+                            // Active Tab
+                            if (activeReminders.isEmpty()) {
+                                EmptyState(isCompleted = false)
+                            } else {
+                                ActiveReminderList(
+                                    reminders = activeReminders,
+                                    onDeleteReminder = { viewModel.deleteReminder(it) },
+                                    onEditReminder = { onNavigateToEdit(it.id) }
+                                )
+                            }
+                        }
+
+                        2 -> {
+                            // Missed Tab
+                            if (completedReminders.isEmpty()) {
+                                EmptyState(isCompleted = true)
+                            } else {
+                                CompletedReminderList(
+                                    reminders = completedReminders,
+                                    onDeleteReminder = { viewModel.deleteReminder(it) },
+                                    onReuseReminder = { onNavigateToReuse(it.id) },
+                                    onRescheduleReminder = { onNavigateToEdit(it.id) }
+                                )
+                            }
+                        }
+
+                        3 -> {
+                            // Deleted Tab
+                            DeletedRemindersTab(
+                                viewModel = viewModel
                             )
                         }
+
                     }
-                    3 -> {
-                        // Deleted Tab
-                        DeletedRemindersTab(
-                            viewModel = viewModel
+                }
+            }
+
+            // Celebration bubble overlay
+            AnimatedVisibility(
+                visible = showCelebration,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showCelebration = false },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = celebrationMessage ?: "",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
             }
         }
     }
-}
+    }
+
 
 
 

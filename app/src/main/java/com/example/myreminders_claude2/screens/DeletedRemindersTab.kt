@@ -3,6 +3,7 @@ package com.example.myreminders_claude2.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -34,7 +35,7 @@ fun DeletedRemindersTab(
     ) {
         // Title
         Text(
-            "Completed Reminders",
+            "Dismissed",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
@@ -46,7 +47,7 @@ fun DeletedRemindersTab(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "${deletedReminders.size} completed",
+                "${deletedReminders.size} dismissed",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -246,7 +247,12 @@ private fun DeletedReminderCard(
     OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.outlinedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+                .compositeOver(MaterialTheme.colorScheme.surface)
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
         )
     ) {
         Column(
@@ -302,7 +308,7 @@ private fun DeletedReminderCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedButton(
+                Button(
                     onClick = onUndelete,
                     modifier = Modifier.weight(1f)
                 ) {

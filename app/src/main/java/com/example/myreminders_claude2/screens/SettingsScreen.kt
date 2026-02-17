@@ -22,7 +22,8 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onThemeChanged: () -> Unit,
     onNavigateToManageCategories: () -> Unit = {},
-    onNavigateToManageTemplates: () -> Unit = {}
+    onNavigateToManageTemplates: () -> Unit = {},
+    onNavigateToPermissions: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val themePrefs = remember { ThemePreferences(context) }
@@ -64,6 +65,50 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Permissions Section
+            Text(
+                "🔔 Permissions",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                onClick = onNavigateToPermissions
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Manage Permissions",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Ensure alarms work correctly on your device",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Go to Permissions",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            HorizontalDivider()
+
             // Categories Section
             Text(
                 "🏷️ Categories",
@@ -160,7 +205,6 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            // Theme Mode Selection
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -175,7 +219,6 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Light Theme
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -193,7 +236,6 @@ fun SettingsScreen(
                         Text("☀️ Light", modifier = Modifier.padding(start = 8.dp))
                     }
 
-                    // Dark Theme
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -211,7 +253,6 @@ fun SettingsScreen(
                         Text("🌙 Dark", modifier = Modifier.padding(start = 8.dp))
                     }
 
-                    // System Theme
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -231,7 +272,6 @@ fun SettingsScreen(
                 }
             }
 
-            // AMOLED Black Mode
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -268,7 +308,6 @@ fun SettingsScreen(
                 }
             }
 
-            // Dynamic Colors (Android 12+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -309,7 +348,6 @@ fun SettingsScreen(
 
             HorizontalDivider()
 
-            // Auto Dark Mode Section
             Text(
                 "🕐 Auto Dark Mode",
                 style = MaterialTheme.typography.titleLarge,
@@ -353,18 +391,13 @@ fun SettingsScreen(
 
                     if (autoDarkEnabled) {
                         Spacer(modifier = Modifier.height(16.dp))
-
-                        // Start Time
                         OutlinedButton(
                             onClick = { showStartTimePicker = true },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Dark Mode Starts: ${formatHour(autoDarkStartHour)}")
                         }
-
                         Spacer(modifier = Modifier.height(8.dp))
-
-                        // End Time
                         OutlinedButton(
                             onClick = { showEndTimePicker = true },
                             modifier = Modifier.fillMaxWidth()
@@ -377,7 +410,6 @@ fun SettingsScreen(
 
             HorizontalDivider()
 
-            // App Info
             Text(
                 "ℹ️ About",
                 style = MaterialTheme.typography.titleLarge,
@@ -417,7 +449,6 @@ fun SettingsScreen(
         }
     }
 
-    // Time Pickers (Simple hour selection)
     if (showStartTimePicker) {
         AlertDialog(
             onDismissRequest = { showStartTimePicker = false },

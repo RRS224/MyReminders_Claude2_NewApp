@@ -21,7 +21,10 @@ import com.example.myreminders_claude2.utils.CategoryManager
 import com.example.myreminders_claude2.viewmodel.ReminderViewModel
 import com.example.myreminders_claude2.utils.TextFormatter
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Notifications
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -486,12 +489,24 @@ fun AddReminderScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = reminderText.isNotBlank()
+                enabled = reminderText.isNotBlank(),
+                border = BorderStroke(
+                    width = 1.5.dp,
+                    color = if (reminderText.isNotBlank())
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                ),
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Text(
                     "📋 Save as Template",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = if (reminderText.isNotBlank())
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -524,8 +539,21 @@ fun AddReminderScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = reminderText.isNotBlank()
+                enabled = reminderText.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                shape = RoundedCornerShape(16.dp)
             ) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     "Save Reminder",
                     style = MaterialTheme.typography.titleMedium,
