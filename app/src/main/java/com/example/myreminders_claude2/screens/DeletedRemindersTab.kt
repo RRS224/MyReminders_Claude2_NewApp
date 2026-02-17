@@ -2,6 +2,8 @@ package com.example.myreminders_claude2.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -30,28 +32,28 @@ fun DeletedRemindersTab(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Header with count
+        // Title
+        Text(
+            "Completed Reminders",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+// Subtitle + Clear All on same row
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    "Deleted Reminders",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "${deletedReminders.size} deleted",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
+            Text(
+                "${deletedReminders.size} completed",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             if (deletedReminders.isNotEmpty()) {
                 OutlinedButton(
                     onClick = { showClearAllDialog = true },
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
@@ -62,11 +64,10 @@ fun DeletedRemindersTab(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Clear All")
+                    Text("Clear All", maxLines = 1)
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
 
         if (deletedReminders.isEmpty()) {
@@ -289,14 +290,9 @@ private fun DeletedReminderCard(
             ) {
                 Column {
                     Text(
-                        "Was: $wasStatus",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        "Deleted $deletedAgo",
+                        "Dismissed $deletedAgo",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

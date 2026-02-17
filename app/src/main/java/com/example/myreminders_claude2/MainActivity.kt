@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.sp
 import com.example.myreminders_claude2.data.RecurrenceType
 import androidx.compose.foundation.clickable
 import android.app.Activity
+import androidx.compose.ui.graphics.Color
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -586,7 +587,7 @@ fun EmptyState(isCompleted: Boolean) {
             modifier = Modifier
                 .size(120.dp)
                 .background(
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     shape = CircleShape
                 ),
             contentAlignment = Alignment.Center
@@ -700,15 +701,15 @@ fun ActiveReminderCard(
         state = dismissState,
         backgroundContent = {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(horizontal = 20.dp),
                 contentAlignment = if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
                     Alignment.CenterStart
                 } else {
                     Alignment.CenterEnd
-                }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.errorContainer)
+                    .padding(horizontal = 20.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
@@ -725,14 +726,14 @@ fun ActiveReminderCard(
                 .clickable { onEdit() },
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             ),
             elevation = CardDefaults.cardElevation(
                 defaultElevation = 4.dp
             ),
             border = androidx.compose.foundation.BorderStroke(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
             )
         ) {
             Column(
@@ -962,7 +963,7 @@ fun CompletedReminderCard(
                 ),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
             )
         ) {
             Column(
@@ -1360,7 +1361,7 @@ fun HomeScreen(
                         onClick = { selectedTab = 3 },
                         text = {
                             Text(
-                                "Completed (${deletedReminders.size})",
+                                "Done (${deletedReminders.size})",
                                 fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal,
                                 fontSize = 12.sp
                             )
@@ -1418,7 +1419,7 @@ fun HomeScreen(
                     }
 
                     2 -> {
-                        // Completed Tab
+                        // Missed Tab
                         if (completedReminders.isEmpty()) {
                             EmptyState(isCompleted = true)
                         } else {
@@ -1429,7 +1430,6 @@ fun HomeScreen(
                             )
                         }
                     }
-
                     3 -> {
                         // Deleted Tab
                         DeletedRemindersTab(

@@ -16,7 +16,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// Light Theme Colors
 private val LightColorScheme = lightColorScheme(
     primary = Color(0xFF6200EE),
     onPrimary = Color.White,
@@ -37,7 +36,6 @@ private val LightColorScheme = lightColorScheme(
     onError = Color.White
 )
 
-// Standard Dark Theme Colors
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFFBB86FC),
     onPrimary = Color.Black,
@@ -58,7 +56,6 @@ private val DarkColorScheme = darkColorScheme(
     onError = Color.Black
 )
 
-// AMOLED Black Theme (Pure #000000)
 private val AmoledDarkColorScheme = darkColorScheme(
     primary = Color(0xFFBB86FC),
     onPrimary = Color.Black,
@@ -69,11 +66,11 @@ private val AmoledDarkColorScheme = darkColorScheme(
     secondaryContainer = Color(0xFF005046),
     onSecondaryContainer = Color(0xFF03DAC6),
     tertiary = Color(0xFF3700B3),
-    background = Color(0xFF000000), // Pure black
+    background = Color(0xFF000000),
     onBackground = Color(0xFFE6E1E5),
-    surface = Color(0xFF000000), // Pure black
+    surface = Color(0xFF000000),
     onSurface = Color(0xFFE6E1E5),
-    surfaceVariant = Color(0xFF1C1B1F), // Slightly lighter than pure black
+    surfaceVariant = Color(0xFF1C1B1F),
     onSurfaceVariant = Color(0xFFCAC4D0),
     error = Color(0xFFCF6679),
     onError = Color.Black
@@ -87,12 +84,10 @@ fun MyRemindersTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
-        // Dynamic color (Android 12+)
         useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) {
                 if (useAmoledBlack) {
-                    // Blend dynamic colors with AMOLED black
                     dynamicDarkColorScheme(context).copy(
                         background = Color(0xFF000000),
                         surface = Color(0xFF000000)
@@ -104,11 +99,8 @@ fun MyRemindersTheme(
                 dynamicLightColorScheme(context)
             }
         }
-        // AMOLED Black (without dynamic colors)
         darkTheme && useAmoledBlack -> AmoledDarkColorScheme
-        // Standard Dark Theme
         darkTheme -> DarkColorScheme
-        // Light Theme
         else -> LightColorScheme
     }
 
