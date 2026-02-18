@@ -85,6 +85,9 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
                 START_NOT_STICKY
             }
             else -> {
+                // Cancel any pending auto-snooze from previous alarm
+                handler.removeCallbacksAndMessages(null)
+
                 currentReminderId = intent?.getLongExtra("REMINDER_ID", -1) ?: -1
                 currentSnoozeCount = intent?.getIntExtra("SNOOZE_COUNT", 0) ?: 0
                 val title: String = intent?.getStringExtra("REMINDER_TITLE") ?: "Reminder"
@@ -107,28 +110,32 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun scheduleAutoSnooze() {
+        // Capture immutable id to prevent race condition if service is re-entered
+        val reminderId = currentReminderId
+        val snoozeCount = currentSnoozeCount
+
         handler.postDelayed({
             CoroutineScope(Dispatchers.IO).launch {
                 val database = ReminderDatabase.getDatabase(applicationContext)
-                val reminder = database.reminderDao().getReminderById(currentReminderId)
+                val reminder = database.reminderDao().getReminderById(reminderId)
 
                 reminder?.let {
                     if (it.snoozeCount < MAX_AUTO_SNOOZES) {
-                        performAutoSnooze()
+                        performAutoSnooze(reminderId)
                     } else {
-                        handleDismiss(isManual = false)
+                        handleDismiss(isManual = false, reminderId = reminderId)
                     }
                 }
             }
         }, RING_DURATION)
     }
 
-    private fun performAutoSnooze() {
+    private fun performAutoSnooze(reminderId: Long = currentReminderId) {
         stopAlarmSound()
 
         CoroutineScope(Dispatchers.IO).launch {
             val database = ReminderDatabase.getDatabase(applicationContext)
-            val reminder = database.reminderDao().getReminderById(currentReminderId)
+            val reminder = database.reminderDao().getReminderById(reminderId)
 
             reminder?.let {
                 val newSnoozeCount: Int = it.snoozeCount + 1
@@ -148,7 +155,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun handleDismiss(isManual: Boolean) {
+    private fun handleDismiss(isManual: Boolean, reminderId: Long = currentReminderId) {
         CoroutineScope(Dispatchers.IO).launch {
             val database = ReminderDatabase.getDatabase(applicationContext)
             val completedAt: Long = System.currentTimeMillis()
@@ -156,7 +163,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
 
             if (isManual) {
                 // ✅ Manually dismissed → goes to Completed tab
-                database.reminderDao().softDeleteReminder(currentReminderId, completedAt)
+                database.reminderDao().softDeleteReminder(reminderId, completedAt)
             } else {
                 // ✅ Unattended (rang 3 times, ignored) → goes to Missed tab
                 database.reminderDao().markAsCompleted(

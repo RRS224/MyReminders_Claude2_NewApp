@@ -38,11 +38,7 @@
         <receiver
             android:name=".alarm.AlarmReceiver"
             android:enabled="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
+            android:exported="false" />
 
         <!-- Alarm Dismiss Receiver - handles dismiss button -->
         <receiver
@@ -55,7 +51,26 @@
             android:name=".alarm.AlarmSnoozeReceiver"
             android:enabled="true"
             android:exported="false" />
+        <!-- Alarm Snooze Receiver - handles snooze button -->
+        <receiver
+            android:name=".alarm.AlarmSnoozeReceiver"
+            android:enabled="true"
+            android:exported="false" />
 
+        <!-- Boot Receiver - reschedules alarms after device events -->
+        <receiver
+            android:name=".alarm.BootReceiver"
+            android:enabled="true"
+            android:exported="false"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
         <!-- Snooze Duration Picker Activity -->
         <activity
             android:name=".alarm.SnoozeDurationActivity"
