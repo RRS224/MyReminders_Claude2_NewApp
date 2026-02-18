@@ -175,6 +175,9 @@ fun PermissionOnboardingScreen(
                     onRequestPermission = { microphonePermission.launchPermissionRequest() }
                 )
 
+                // OEM Battery Optimization Section
+                OEMBatteryOptimizationSection()
+
                 Spacer(modifier = Modifier.weight(1f))
 
                 if (allGranted) {
@@ -316,6 +319,114 @@ fun PermissionCard(
                         contentDescription = "Grant",
                         tint = MaterialTheme.colorScheme.primary
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun OEMBatteryOptimizationSection() {
+    val manufacturer = com.example.myreminders_claude2.utils.OEMHelper.getManufacturerName()
+    val steps = com.example.myreminders_claude2.utils.OEMHelper.getBatteryOptimizationSteps()
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        HorizontalDivider()
+
+        Text(
+            text = "$manufacturer Device Setup",
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold
+            ),
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        Text(
+            text = "For reliable alarms, disable battery optimization:",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+            ),
+            onClick = { isExpanded = !isExpanded }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.BatteryFull,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            "Battery Optimization Steps",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                }
+
+                if (isExpanded) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    steps.forEachIndexed { index, step ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "${index + 1}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSecondary
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = step,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        if (index < steps.size - 1) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                    }
                 }
             }
         }
