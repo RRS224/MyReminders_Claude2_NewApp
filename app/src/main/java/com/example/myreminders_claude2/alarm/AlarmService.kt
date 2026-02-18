@@ -230,20 +230,19 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         }
         val displayTitle = "$ringLabel$title"
 
-        // Snooze action
-        val snoozeIntent = Intent(this, AlarmSnoozeReceiver::class.java).apply {
-            action = "com.example.myreminders_claude2.ACTION_SNOOZE"
+        // Snooze action - use Activity PendingIntent for reliable launching
+        val snoozeIntent = Intent(this, SnoozeDurationActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
             putExtra("REMINDER_ID", reminderId)
             putExtra("TITLE", title)
             putExtra("NOTES", notes)
         }
-        val snoozePendingIntent = PendingIntent.getBroadcast(
+        val snoozePendingIntent = PendingIntent.getActivity(
             this,
             reminderId.toInt(),
             snoozeIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
         // Dismiss action
         val dismissIntent = Intent(this, AlarmDismissReceiver::class.java).apply {
             action = "com.example.myreminders_claude2.ACTION_DISMISS"
@@ -284,7 +283,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         // Add actions - these will appear as buttons
         builder.addAction(
             android.R.drawable.ic_lock_idle_alarm,
-            "Snooze 10m",
+            "Snooze",
             snoozePendingIntent
         )
         builder.addAction(

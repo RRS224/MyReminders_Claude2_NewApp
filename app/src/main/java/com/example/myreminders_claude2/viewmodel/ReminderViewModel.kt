@@ -150,7 +150,11 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
                     notes = notes,
                     dateTime = dateTime,
                     mainCategory = mainCategory,
-                    subCategory = subCategory
+                    subCategory = subCategory,
+                    isDeleted = false,  // Always undelete when updating
+                    deletedAt = null,
+                    isCompleted = false,
+                    completedAt = null
                 )
                 reminderRepository.updateReminder(updated)
 
@@ -565,6 +569,11 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
     /**
      * Undelete a reminder (restore to original status)
      */
+    fun undeleteReminderById(id: Long) {
+        viewModelScope.launch {
+            reminderRepository.undeleteReminder(id)
+        }
+    }
     fun undeleteReminder(reminder: Reminder) {
         viewModelScope.launch {
             reminderRepository.undeleteReminder(reminder.id)

@@ -576,15 +576,28 @@ fun EditReminderScreen(
                                 isVoiceEnabled = isVoiceEnabled
                             )
                         } else {
-                            // Updating existing reminder
-                            viewModel.updateReminder(
-                                id = reminderId,
-                                title = TextFormatter.smartCapitalize(reminderText),
-                                notes = TextFormatter.smartCapitalize(notes),
-                                dateTime = selectedDateTime,
-                                mainCategory = mainCategory,
-                                subCategory = finalType
-                            )
+                            if (isRestore) {
+                                // Restoring - need to undelete AND update
+                                viewModel.undeleteReminderById(reminderId)
+                                viewModel.updateReminder(
+                                    id = reminderId,
+                                    title = TextFormatter.smartCapitalize(reminderText),
+                                    notes = TextFormatter.smartCapitalize(notes),
+                                    dateTime = selectedDateTime,
+                                    mainCategory = mainCategory,
+                                    subCategory = finalType
+                                )
+                            } else {
+                                // Regular update
+                                viewModel.updateReminder(
+                                    id = reminderId,
+                                    title = TextFormatter.smartCapitalize(reminderText),
+                                    notes = TextFormatter.smartCapitalize(notes),
+                                    dateTime = selectedDateTime,
+                                    mainCategory = mainCategory,
+                                    subCategory = finalType
+                                )
+                            }
                         }
                         onNavigateBack()
                     }

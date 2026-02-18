@@ -56,6 +56,13 @@
             android:enabled="true"
             android:exported="false" />
 
+        <!-- Snooze Duration Picker Activity -->
+        <activity
+            android:name=".alarm.SnoozeDurationActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MyReminders_Claude2"
+            android:excludeFromRecents="true" />
+
         <!-- Alarm Service - plays sound and shows notification -->
         <service
             android:name=".alarm.AlarmService"
