@@ -13,16 +13,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.myreminders_claude2.data.Reminder
 import com.example.myreminders_claude2.viewmodel.ReminderViewModel
+import com.example.myreminders_claude2.performHapticFeedback
 
 @Composable
 fun DeletedRemindersTab(
     viewModel: ReminderViewModel
 ) {
+    val context = LocalContext.current
     val deletedReminders by viewModel.deletedReminders.collectAsState(initial = emptyList())
     var showClearAllDialog by remember { mutableStateOf(false) }
     var showPermanentDeleteDialog by remember { mutableStateOf(false) }
@@ -53,7 +56,10 @@ fun DeletedRemindersTab(
             )
             if (deletedReminders.isNotEmpty()) {
                 OutlinedButton(
-                    onClick = { showClearAllDialog = true },
+                    onClick = {
+                        performHapticFeedback(context)
+                        showClearAllDialog = true
+                    },
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
@@ -113,8 +119,12 @@ fun DeletedRemindersTab(
                 items(deletedReminders, key = { it.id }) { reminder ->
                     DeletedReminderCard(
                         reminder = reminder,
-                        onUndelete = { viewModel.undeleteReminder(reminder) },
+                        onUndelete = {
+                            performHapticFeedback(context)
+                            viewModel.undeleteReminder(reminder)
+                        },
                         onPermanentDelete = {
+                            performHapticFeedback(context)
                             selectedReminder = reminder
                             showPermanentDeleteDialog = true
                         }
@@ -135,6 +145,7 @@ fun DeletedRemindersTab(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        performHapticFeedback(context)
                         viewModel.permanentlyDeleteAll()
                         showClearAllDialog = false
                     },
@@ -186,6 +197,7 @@ fun DeletedRemindersTab(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        performHapticFeedback(context)
                         viewModel.permanentlyDeleteSingle(selectedReminder!!.id)
                         showPermanentDeleteDialog = false
                         selectedReminder = null

@@ -653,6 +653,28 @@ fun EmptyState(isCompleted: Boolean) {
         )
     }
 }
+fun performHapticFeedback(context: android.content.Context) {
+    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val vibratorManager =
+            context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+        vibratorManager.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        vibrator.vibrate(
+            android.os.VibrationEffect.createOneShot(
+                20,
+                android.os.VibrationEffect.EFFECT_HEAVY_CLICK
+            )
+        )
+    } else {
+        @Suppress("DEPRECATION")
+        vibrator.vibrate(20)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActiveReminderCard(
@@ -692,8 +714,8 @@ fun ActiveReminderCard(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vibrator.vibrate(
                     android.os.VibrationEffect.createOneShot(
-                        10,
-                        android.os.VibrationEffect.DEFAULT_AMPLITUDE
+                        15,
+                        android.os.VibrationEffect.EFFECT_HEAVY_CLICK
                     )
                 )
             } else {
@@ -849,7 +871,10 @@ fun ActiveReminderCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    IconButton(onClick = onDelete) {
+                    IconButton(onClick = {
+                        performHapticFeedback(context)
+                        onDelete()
+                    }) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Delete",
@@ -927,8 +952,8 @@ fun CompletedReminderCard(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vibrator.vibrate(
                     android.os.VibrationEffect.createOneShot(
-                        10,
-                        android.os.VibrationEffect.DEFAULT_AMPLITUDE
+                        20,
+                        android.os.VibrationEffect.EFFECT_HEAVY_CLICK
                     )
                 )
             } else {
@@ -1119,7 +1144,10 @@ fun CompletedReminderCard(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
-                    onClick = onReschedule,
+                    onClick = {
+                        performHapticFeedback(context)
+                        onReschedule()
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(

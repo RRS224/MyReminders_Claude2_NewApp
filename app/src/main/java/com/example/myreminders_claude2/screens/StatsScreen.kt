@@ -113,10 +113,16 @@ fun StatsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "$completionRate%",
+                    text = "${totalCompleted + totalManuallyDone}/${totalEverCreated}",
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "$completionRate%",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 LinearProgressIndicator(
                     progress = { completionRate / 100f },
