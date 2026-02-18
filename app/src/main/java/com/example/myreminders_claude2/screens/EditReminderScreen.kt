@@ -18,6 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.example.myreminders_claude2.data.CategoryDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import com.example.myreminders_claude2.data.RecurrenceType
 import com.example.myreminders_claude2.utils.CategoryManager
 import com.example.myreminders_claude2.utils.TextFormatter
@@ -39,7 +41,8 @@ fun EditReminderScreen(
     initialSubCategory: String? = null,
     initialIsVoiceEnabled: Boolean = true,
     onNavigateBack: () -> Unit,
-    isReuse: Boolean = false
+    isReuse: Boolean = false,
+    isRestore: Boolean = false
 ) {
     val context = LocalContext.current
     val categoryManager = remember { CategoryManager(context) }
@@ -82,6 +85,46 @@ fun EditReminderScreen(
         CategoryDefaults.HEALTH -> listOf("General", "Medication", "Exercise", "Doctor", "Checkup", "Therapy", "Custom...")
         CategoryDefaults.FINANCE -> listOf("General", "Bill", "Payment", "Tax", "Budget", "Investment", "Custom...")
         else -> listOf("General", "Custom...")
+    }
+
+    // Auto-open date picker if restoring from Done tab
+    LaunchedEffect(isRestore) {
+        if (isRestore) {
+            // Small delay to let the screen render first
+            kotlinx.coroutines.delay(300)
+            val calendar = java.util.Calendar.getInstance()
+            calendar.timeInMillis = selectedDateTime
+
+            val datePicker = android.app.DatePickerDialog(
+                context,
+                { _, year, month, day ->
+                    TimePickerDialog(
+                        context,
+                        { _, hour, minute ->
+                            calendar.set(year, month, day, hour, minute, 0)
+                            val newTime = calendar.timeInMillis
+                            if (newTime < System.currentTimeMillis() - (60 * 1000)) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "⚠️ Cannot select a time in the past",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                selectedDateTime = newTime
+                            }
+                        },
+                        calendar.get(java.util.Calendar.HOUR_OF_DAY),
+                        calendar.get(java.util.Calendar.MINUTE),
+                        false
+                    ).show()
+                },
+                calendar.get(java.util.Calendar.YEAR),
+                calendar.get(java.util.Calendar.MONTH),
+                calendar.get(java.util.Calendar.DAY_OF_MONTH)
+            )
+            datePicker.datePicker.minDate = System.currentTimeMillis()
+            datePicker.show()
+        }
     }
 
     // Reset type to General when category changes and type is not in new options
@@ -274,20 +317,32 @@ fun EditReminderScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = if (selectedDateTime < System.currentTimeMillis() - (60 * 1000))
+                        MaterialTheme.colorScheme.errorContainer
+                    else
+                        MaterialTheme.colorScheme.primaryContainer
                 ),
                 onClick = {
                     val calendar = Calendar.getInstance()
                     calendar.timeInMillis = selectedDateTime
 
-                    DatePickerDialog(
+                    val datePicker = DatePickerDialog(
                         context,
                         { _, year, month, day ->
                             TimePickerDialog(
                                 context,
                                 { _, hour, minute ->
                                     calendar.set(year, month, day, hour, minute, 0)
-                                    selectedDateTime = calendar.timeInMillis
+                                    val newTime = calendar.timeInMillis
+                                    if (newTime < System.currentTimeMillis() - (60 * 1000)) {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            "⚠️ Cannot select a time in the past",
+                                            android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                    } else {
+                                        selectedDateTime = newTime
+                                    }
                                 },
                                 calendar.get(Calendar.HOUR_OF_DAY),
                                 calendar.get(Calendar.MINUTE),
@@ -297,7 +352,9 @@ fun EditReminderScreen(
                         calendar.get(Calendar.YEAR),
                         calendar.get(Calendar.MONTH),
                         calendar.get(Calendar.DAY_OF_MONTH)
-                    ).show()
+                    )
+                    datePicker.datePicker.minDate = System.currentTimeMillis()
+                    datePicker.show()
                 }
             ) {
                 Row(
@@ -318,8 +375,20 @@ fun EditReminderScreen(
                             dateFormat.format(Date(selectedDateTime)),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = if (selectedDateTime < System.currentTimeMillis() - (60 * 1000))
+                                MaterialTheme.colorScheme.error
+                            else
+                                MaterialTheme.colorScheme.onPrimaryContainer
                         )
+                        if (selectedDateTime < System.currentTimeMillis() - (60 * 1000)) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "⚠️ Date is in the past",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -523,7 +592,7 @@ fun EditReminderScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = reminderText.isNotBlank()
+                enabled = reminderText.isNotBlank() && selectedDateTime > System.currentTimeMillis() - (60 * 1000)
             ) {
                 Text(
                     if (isReuse) "Create Reminder" else "Save Changes",

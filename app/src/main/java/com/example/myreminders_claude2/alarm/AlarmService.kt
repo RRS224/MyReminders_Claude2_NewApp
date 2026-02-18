@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.util.Log
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
@@ -72,15 +73,15 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
                 START_NOT_STICKY
             }
             ACTION_STOP_ALARM -> {
-                val reminderIdFromIntent: Long = intent.getLongExtra("REMINDER_ID", -1)
-                stopAlarmSound()
-                if (reminderIdFromIntent != -1L) {
-                    val openIntent = Intent(this, MainActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                        putExtra("REMINDER_ID", reminderIdFromIntent)
-                    }
-                    startActivity(openIntent)
-                }
+                Log.d("AlarmService", "=== ACTION_STOP_ALARM RECEIVED ===")
+                // Just stop the alarm, don't open MainActivity
+                // The user can use notification buttons or swipe to dismiss
+                stopAlarmSound()  // This already stops vibration
+                Log.d("AlarmService", "Alarm sound stopped")
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                Log.d("AlarmService", "Stopped foreground")
+                stopSelf()
+                Log.d("AlarmService", "Service stopped")
                 START_NOT_STICKY
             }
             else -> {
@@ -215,14 +216,13 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         stopAlarmSound()
         stopSelf()
     }
-
     private fun createNotification(
         title: String,
         notes: String,
         reminderId: Long,
         snoozeCount: Int = 0
     ): android.app.Notification {
-        // ✅ Show "Second Reminder" / "Third Reminder" prefix
+        // Show "Second Reminder" / "Third Reminder" prefix
         val ringLabel = when (snoozeCount) {
             1 -> "Second Reminder: "
             2 -> "Third Reminder: "
@@ -230,57 +230,78 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         }
         val displayTitle = "$ringLabel$title"
 
-        val stopAndOpenIntent = Intent(this, AlarmService::class.java).apply {
-            action = ACTION_STOP_ALARM
+        // Snooze action
+        val snoozeIntent = Intent(this, AlarmSnoozeReceiver::class.java).apply {
+            action = "com.example.myreminders_claude2.ACTION_SNOOZE"
             putExtra("REMINDER_ID", reminderId)
+            putExtra("TITLE", title)
+            putExtra("NOTES", notes)
         }
-
-        val openPendingIntent: PendingIntent = PendingIntent.getService(
+        val snoozePendingIntent = PendingIntent.getBroadcast(
             this,
             reminderId.toInt(),
-            stopAndOpenIntent,
+            snoozeIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // Dismiss action
         val dismissIntent = Intent(this, AlarmDismissReceiver::class.java).apply {
+            action = "com.example.myreminders_claude2.ACTION_DISMISS"
             putExtra("REMINDER_ID", reminderId)
         }
-
-        val dismissPendingIntent: PendingIntent = PendingIntent.getBroadcast(
+        val dismissPendingIntent = PendingIntent.getBroadcast(
             this,
-            reminderId.toInt() + 10000,
+            reminderId.toInt() + 1000000,
             dismissIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Open app action (for tapping the notification body)
+        val openIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("REMINDER_ID", reminderId)
+        }
+        val openPendingIntent = PendingIntent.getActivity(
+            this,
+            reminderId.toInt() + 2000000,
+            openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(displayTitle)
-            .setContentText(notes.ifBlank { "Tap to view" })
+            .setContentText(notes.ifBlank { "Use buttons below to snooze or dismiss" })
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openPendingIntent)
             .setAutoCancel(false)
-            .setOngoing(false)
+            .setOngoing(true)
+            .setShowWhen(true)
+            .setWhen(System.currentTimeMillis())
 
+        // Add actions - these will appear as buttons
+        builder.addAction(
+            android.R.drawable.ic_lock_idle_alarm,
+            "Snooze 10m",
+            snoozePendingIntent
+        )
         builder.addAction(
             android.R.drawable.ic_menu_close_clear_cancel,
             "Dismiss",
             dismissPendingIntent
         )
 
-        if (notes.isNotBlank()) {
-            builder.setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText(notes)
-                    .setBigContentTitle(displayTitle)
-            )
-        }
+        // Use BigTextStyle to ensure notification expands and shows buttons
+        builder.setStyle(
+            NotificationCompat.BigTextStyle()
+                .bigText(notes.ifBlank { "Use buttons below to snooze or dismiss" })
+                .setBigContentTitle(displayTitle)
+        )
 
         return builder.build()
     }
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -350,15 +371,20 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun stopAlarmSound() {
+        Log.d("AlarmService", "stopAlarmSound() called")
         handler.removeCallbacksAndMessages(null)
 
         mediaPlayer?.apply {
-            if (isPlaying) stop()
+            if (isPlaying) {
+                Log.d("AlarmService", "Stopping media player")
+                stop()
+            }
             release()
         }
         mediaPlayer = null
 
         vibrator?.cancel()
+        Log.d("AlarmService", "Vibration cancelled")
 
         textToSpeech?.apply {
             stop()
@@ -366,7 +392,8 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         }
         textToSpeech = null
 
-        stopForeground(STOP_FOREGROUND_DETACH)
+        Log.d("AlarmService", "stopAlarmSound() complete - NOT calling stopForeground here")
+        // Don't call stopForeground here - let the action handler do it
     }
 
     override fun onDestroy() {

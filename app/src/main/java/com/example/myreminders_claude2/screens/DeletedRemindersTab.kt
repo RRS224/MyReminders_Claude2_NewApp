@@ -23,7 +23,8 @@ import com.example.myreminders_claude2.performHapticFeedback
 
 @Composable
 fun DeletedRemindersTab(
-    viewModel: ReminderViewModel
+    viewModel: ReminderViewModel,
+    onNavigateToEdit: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val deletedReminders by viewModel.deletedReminders.collectAsState(initial = emptyList())
@@ -121,7 +122,7 @@ fun DeletedRemindersTab(
                         reminder = reminder,
                         onUndelete = {
                             performHapticFeedback(context)
-                            viewModel.undeleteReminder(reminder)
+                            onNavigateToEdit(reminder.id)
                         },
                         onPermanentDelete = {
                             performHapticFeedback(context)

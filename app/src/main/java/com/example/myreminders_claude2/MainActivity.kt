@@ -389,7 +389,8 @@ fun MainNavigation(
                     initialSubCategory = rem.subCategory,
                     initialIsVoiceEnabled = rem.isVoiceEnabled,
                     onNavigateBack = { navController.popBackStack() },
-                    isReuse = false
+                    isReuse = false,
+                    isRestore = rem.isDeleted  // Auto-open date picker if restoring from Done
                 )
             }
         }
@@ -1563,7 +1564,8 @@ fun HomeScreen(
                         3 -> {
                             // Deleted Tab
                             DeletedRemindersTab(
-                                viewModel = viewModel
+                                viewModel = viewModel,
+                                onNavigateToEdit = onNavigateToEdit
                             )
                         }
 

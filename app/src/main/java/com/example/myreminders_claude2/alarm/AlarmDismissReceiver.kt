@@ -13,7 +13,10 @@ import java.util.Calendar
 
 class AlarmDismissReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        android.widget.Toast.makeText(context, "DISMISS RECEIVER TRIGGERED!", android.widget.Toast.LENGTH_LONG).show()
+        Log.d("AlarmDismissReceiver", "=== DISMISS BUTTON TAPPED ===")
         val reminderId = intent.getLongExtra("REMINDER_ID", -1)
+        Log.d("AlarmDismissReceiver", "Reminder ID: $reminderId")
 
         if (reminderId != -1L) {
             CoroutineScope(Dispatchers.IO).launch {
@@ -70,10 +73,16 @@ class AlarmDismissReceiver : BroadcastReceiver() {
                 }
             }
 
-            // Stop the alarm service
-            val serviceIntent = Intent(context, AlarmService::class.java)
-            context.stopService(serviceIntent)
         }
+
+        // Stop the alarm service IMMEDIATELY (outside coroutine)
+        Log.d("AlarmDismissReceiver", "Stopping alarm service for reminder: $reminderId")
+        val stopIntent = Intent(context, AlarmService::class.java).apply {
+            action = AlarmService.ACTION_STOP_ALARM
+        }
+        context.startService(stopIntent)
+        Log.d("AlarmDismissReceiver", "Stop intent sent")
+    }
     }
 
     private fun calculateNextOccurrence(
@@ -111,4 +120,3 @@ class AlarmDismissReceiver : BroadcastReceiver() {
 
         return calendar.timeInMillis
     }
-}

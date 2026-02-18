@@ -16,17 +16,16 @@ class BootReceiver : BroadcastReceiver() {
             val alarmScheduler = AlarmScheduler(context)
 
             CoroutineScope(Dispatchers.IO).launch {
-                // Get all active (non-completed) reminders
-                database.reminderDao().getAllActiveReminders()
-                    .collect { reminders ->
-                        // Re-schedule each reminder
-                        reminders.forEach { reminder ->
-                            // Only re-schedule if the time is in the future
-                            if (reminder.dateTime > System.currentTimeMillis()) {
-                                alarmScheduler.scheduleAlarm(reminder)
-                            }
-                        }
+                // Get all active (non-completed) reminders - one-time fetch
+                val reminders = database.reminderDao().getAllActiveRemindersSync()
+
+                // Re-schedule each reminder
+                reminders.forEach { reminder ->
+                    // Only re-schedule if the time is in the future
+                    if (reminder.dateTime > System.currentTimeMillis()) {
+                        alarmScheduler.scheduleAlarm(reminder)
                     }
+                }
             }
         }
     }

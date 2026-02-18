@@ -10,6 +10,9 @@ interface ReminderDao {
     @Query("SELECT * FROM reminders WHERE isCompleted = 0 AND isDeleted = 0 ORDER BY dateTime ASC")
     fun getAllActiveReminders(): Flow<List<Reminder>>
 
+    // Sync version for boot receiver
+    @Query("SELECT * FROM reminders WHERE isCompleted = 0 AND isDeleted = 0 ORDER BY dateTime ASC")
+    suspend fun getAllActiveRemindersSync(): List<Reminder>
     // Get all completed reminders (not deleted)
     @Query("SELECT * FROM reminders WHERE isCompleted = 1 AND isDeleted = 0 ORDER BY completedAt DESC")
     fun getCompletedReminders(): Flow<List<Reminder>>

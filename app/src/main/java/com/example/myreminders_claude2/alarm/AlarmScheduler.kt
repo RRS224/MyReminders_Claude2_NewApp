@@ -23,7 +23,10 @@ class AlarmScheduler(private val context: Context) {
         Log.d(TAG, "Title: ${reminder.title}")
         Log.d(TAG, "Scheduled for: ${dateFormat.format(Date(reminder.dateTime))}")
         Log.d(TAG, "Current time: ${dateFormat.format(Date())}")
-        Log.d(TAG, "Seconds until alarm: ${(reminder.dateTime - System.currentTimeMillis()) / 1000}")
+        Log.d(
+            TAG,
+            "Seconds until alarm: ${(reminder.dateTime - System.currentTimeMillis()) / 1000}"
+        )
 
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             putExtra("REMINDER_ID", reminder.id)
@@ -78,5 +81,50 @@ class AlarmScheduler(private val context: Context) {
         )
         alarmManager.cancel(pendingIntent)
         Log.d(TAG, "Alarm cancelled successfully")
+    }
+
+    // Overload for snooze - schedules without full Reminder object
+    fun scheduleAlarmForSnooze(
+        reminderId: Long,
+        triggerTime: Long,
+        title: String,
+        notes: String,
+        isVoiceEnabled: Boolean = true
+    ) {
+        val dateFormat = SimpleDateFormat("MMM dd, yyyy hh:mm:ss a", Locale.getDefault())
+        Log.d(TAG, "=== SCHEDULING SNOOZE ALARM ===")
+        Log.d(TAG, "Reminder ID: $reminderId")
+        Log.d(TAG, "Title: $title")
+        Log.d(TAG, "Scheduled for: ${dateFormat.format(Date(triggerTime))}")
+
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            putExtra("REMINDER_ID", reminderId)
+            putExtra("REMINDER_TITLE", title)
+            putExtra("REMINDER_NOTES", notes)
+            putExtra("VOICE_ENABLED", isVoiceEnabled)
+            putExtra("SNOOZE_COUNT", 0) // Reset snooze count for manual snooze
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            reminderId.toInt(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val showIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("REMINDER_ID", reminderId)
+        }
+        val showPendingIntent = PendingIntent.getActivity(
+            context,
+            reminderId.toInt(),
+            showIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val alarmInfo = AlarmManager.AlarmClockInfo(triggerTime, showPendingIntent)
+        alarmManager.setAlarmClock(alarmInfo, pendingIntent)
+        Log.d(TAG, "Snooze alarm set successfully")
     }
 }

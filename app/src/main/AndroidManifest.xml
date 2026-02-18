@@ -50,6 +50,12 @@
             android:enabled="true"
             android:exported="false" />
 
+        <!-- Alarm Snooze Receiver - handles snooze button -->
+        <receiver
+            android:name=".alarm.AlarmSnoozeReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
         <!-- Alarm Service - plays sound and shows notification -->
         <service
             android:name=".alarm.AlarmService"

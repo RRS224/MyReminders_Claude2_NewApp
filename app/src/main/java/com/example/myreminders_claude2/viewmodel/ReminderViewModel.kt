@@ -569,9 +569,23 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             reminderRepository.undeleteReminder(reminder.id)
 
-            // If it was active and time hasn't passed, reschedule alarm
-            if (!reminder.isCompleted && reminder.dateTime > System.currentTimeMillis()) {
-                alarmScheduler.scheduleAlarm(reminder)
+            // If it was active, check if we need to update the time
+            if (!reminder.isCompleted) {
+                val now = System.currentTimeMillis()
+                if (reminder.dateTime <= now) {
+                    // Time is in the past - update to 1 hour from now
+                    val updatedReminder = reminder.copy(
+                        dateTime = now + (60 * 60 * 1000), // 1 hour from now
+                        isDeleted = false,
+                        deletedAt = null,
+                        updatedAt = now
+                    )
+                    reminderRepository.updateReminder(updatedReminder)
+                    alarmScheduler.scheduleAlarm(updatedReminder)
+                } else {
+                    // Time is still in the future - just reschedule
+                    alarmScheduler.scheduleAlarm(reminder)
+                }
             }
         }
     }
