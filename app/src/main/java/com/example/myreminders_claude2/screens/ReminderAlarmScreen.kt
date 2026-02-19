@@ -31,7 +31,8 @@ fun ReminderAlarmScreen(
     onDismiss: () -> Unit,
     onSnooze: () -> Unit
 ) {
-    val dateFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+    // ✅ FIX: remember{} so the formatter is created once, not on every recomposition
+    val dateFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
     val maxSnoozes = 3
     val canSnooze = snoozeCount < maxSnoozes
 

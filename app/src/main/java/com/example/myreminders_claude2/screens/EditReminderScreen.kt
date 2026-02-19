@@ -76,7 +76,8 @@ fun EditReminderScreen(
     var recurrenceInterval by remember { mutableStateOf(initialRecurrenceInterval) }
     var showRecurrenceMenu by remember { mutableStateOf(false) }
 
-    val dateFormat = SimpleDateFormat("EEE, MMM dd yyyy 'at' hh:mm a", Locale.getDefault())
+    // ✅ FIX: remember{} so the formatter is created once, not on every recomposition
+    val dateFormat = remember { SimpleDateFormat("EEE, MMM dd yyyy 'at' hh:mm a", Locale.getDefault()) }
 
     // Get type options based on main category
     val typeOptions = when (mainCategory) {

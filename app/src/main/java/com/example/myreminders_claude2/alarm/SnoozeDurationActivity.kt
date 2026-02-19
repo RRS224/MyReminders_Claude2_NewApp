@@ -1,6 +1,5 @@
 package com.example.myreminders_claude2.alarm
 
-import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -8,7 +7,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,7 +22,6 @@ class SnoozeDurationActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         Log.d("SnoozeDuration", "=== onCreate called ===")
-        android.widget.Toast.makeText(this, "Snooze activity created", android.widget.Toast.LENGTH_SHORT).show()
 
         // Show over lock screen
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
@@ -46,11 +43,11 @@ class SnoozeDurationActivity : ComponentActivity() {
                 SnoozeDurationDialog(
                     onDurationSelected = { minutes ->
                         performSnooze(reminderId, title, notes, minutes)
-                        android.util.Log.d("SnoozeDuration", "Finishing activity")
+                        Log.d("SnoozeDuration", "Finishing activity")
                         finish()
                     },
                     onDismiss = {
-                        android.util.Log.d("SnoozeDuration", "Dialog dismissed, finishing activity")
+                        Log.d("SnoozeDuration", "Dialog dismissed, finishing activity")
                         finish()
                     }
                 )
@@ -59,15 +56,14 @@ class SnoozeDurationActivity : ComponentActivity() {
     }
 
     private fun performSnooze(reminderId: Long, title: String, notes: String, minutes: Int) {
-        android.util.Log.d("SnoozeDuration", "Performing snooze for $minutes minutes")
-        android.widget.Toast.makeText(this, "Snoozed for $minutes minutes", android.widget.Toast.LENGTH_SHORT).show()
+        Log.d("SnoozeDuration", "Performing snooze for $minutes minutes")
 
         // Stop current alarm
         val stopIntent = Intent(this, AlarmService::class.java).apply {
             action = AlarmService.ACTION_STOP_ALARM
         }
         startService(stopIntent)
-        android.util.Log.d("SnoozeDuration", "Stop intent sent")
+        Log.d("SnoozeDuration", "Stop intent sent")
 
         // Schedule new alarm
         val alarmScheduler = AlarmScheduler(this)
@@ -82,11 +78,18 @@ class SnoozeDurationActivity : ComponentActivity() {
         )
 
         // Update database
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO).launch {
             val database = com.example.myreminders_claude2.data.ReminderDatabase.getDatabase(applicationContext)
             val reminder = database.reminderDao().getReminderByIdSync(reminderId)
             reminder?.let {
-                val updated = it.copy(dateTime = snoozeTime)
+                val updated = it.copy(
+                    dateTime = snoozeTime,
+                    // ✅ FIX: Increment snoozeCount so "Second/Third Reminder" labels
+                    // and the auto-snooze limiter both reflect manual snoozes correctly
+                    snoozeCount = it.snoozeCount + 1,
+                    // ✅ Bump updatedAt so Firebase sync picks up this change
+                    updatedAt = System.currentTimeMillis()
+                )
                 database.reminderDao().updateReminder(updated)
             }
         }
@@ -146,7 +149,7 @@ fun SnoozeDurationDialog(
                             },
                             modifier = Modifier.weight(1f),
                             enabled = customMinutes.toIntOrNull()?.let { it > 0 } == true
-                        ) {
+        ) {
                             Text("Snooze")
                         }
                     }

@@ -1027,7 +1027,7 @@ fun CompletedReminderCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                      .padding(16.dp)
+                    .padding(16.dp)
             ) {
                 // Header: Checkmark + Category Emoji + Type + Recurrence Badge
                 Row(
@@ -1284,222 +1284,222 @@ fun HomeScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(            topBar = {
-                Column {
-                    CenterAlignedTopAppBar(
-                        title = {
-                            Text(
-                                "My Reminders",
-                                style = MaterialTheme.typography.headlineMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.5.sp
-                                )
+            Column {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            "My Reminders",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
                             )
-                        },
-                        actions = {
-                            // User Profile Menu
-                            val currentUser = FirebaseAuth.getInstance().currentUser
-                            var showUserMenu by remember { mutableStateOf(false) }
+                        )
+                    },
+                    actions = {
+                        // User Profile Menu
+                        val currentUser = FirebaseAuth.getInstance().currentUser
+                        var showUserMenu by remember { mutableStateOf(false) }
 
-                            Box {
-                                if (currentUser != null) {
-                                    // Signed In - Show Avatar
-                                    IconButton(onClick = { showUserMenu = true }) {
-                                        AsyncImage(
-                                            model = currentUser.photoUrl,
-                                            contentDescription = "Profile",
-                                            modifier = Modifier
-                                                .size(32.dp)
-                                                .clip(CircleShape)
-                                                .border(
-                                                    1.dp,
-                                                    MaterialTheme.colorScheme.primary,
-                                                    CircleShape
-                                                ),
-                                            contentScale = ContentScale.Crop,
-                                            error = painterResource(android.R.drawable.ic_menu_myplaces)
+                        Box {
+                            if (currentUser != null) {
+                                // Signed In - Show Avatar
+                                IconButton(onClick = { showUserMenu = true }) {
+                                    AsyncImage(
+                                        model = currentUser.photoUrl,
+                                        contentDescription = "Profile",
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .border(
+                                                1.dp,
+                                                MaterialTheme.colorScheme.primary,
+                                                CircleShape
+                                            ),
+                                        contentScale = ContentScale.Crop,
+                                        error = painterResource(android.R.drawable.ic_menu_myplaces)
+                                    )
+                                }
+
+                                DropdownMenu(
+                                    expanded = showUserMenu,
+                                    onDismissRequest = { showUserMenu = false }
+                                ) {
+                                    // User Info
+                                    Column(
+                                        modifier = Modifier.padding(16.dp)
+                                    ) {
+                                        Text(
+                                            currentUser.displayName ?: "User",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            currentUser.email ?: "",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            "✓ Signed in with Google",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary
                                         )
                                     }
 
-                                    DropdownMenu(
-                                        expanded = showUserMenu,
-                                        onDismissRequest = { showUserMenu = false }
-                                    ) {
-                                        // User Info
-                                        Column(
-                                            modifier = Modifier.padding(16.dp)
-                                        ) {
-                                            Text(
-                                                currentUser.displayName ?: "User",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                currentUser.email ?: "",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                "✓ Signed in with Google",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.primary
+                                    HorizontalDivider()
+
+                                    // Sign Out
+                                    DropdownMenuItem(
+                                        text = { Text("Sign out") },
+                                        onClick = {
+                                            showUserMenu = false
+                                            authViewModel.signOut()
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.ExitToApp,
+                                                contentDescription = null
                                             )
                                         }
-
-                                        HorizontalDivider()
-
-                                        // Sign Out
-                                        DropdownMenuItem(
-                                            text = { Text("Sign out") },
-                                            onClick = {
-                                                showUserMenu = false
-                                                authViewModel.signOut()
-                                            },
-                                            leadingIcon = {
-                                                Icon(
-                                                    imageVector = Icons.Default.ExitToApp,
-                                                    contentDescription = null
-                                                )
-                                            }
-                                        )
-                                    }
-                                } else {
-                                    // Not Signed In - Show Sign In Button
-                                    TextButton(onClick = {
-                                        authViewModel.signOut()
-                                    }) {
-                                        Text("Sign In", color = MaterialTheme.colorScheme.primary)
-                                    }
-                                }
-                            }
-
-                            // Settings Icon (direct access)
-                            IconButton(onClick = onNavigateToSettings) {
-                                Icon(
-                                    imageVector = Icons.Default.Settings,
-                                    contentDescription = "Settings"
-                                )
-                            }
-
-                            // Stats Trophy Icon
-                            IconButton(onClick = onNavigateToStats) {
-                                Icon(
-                                    imageVector = Icons.Default.EmojiEvents,
-                                    contentDescription = "Stats",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-
-                            // Clear All button (only on Completed tab)
-                            if (selectedTab == 2 && completedReminders.isNotEmpty()) {
-                                IconButton(onClick = {
-                                    scope.launch {
-                                        viewModel.clearAllCompleted()
-                                    }
-                                }) {
-                                    Icon(
-                                        imageVector = Icons.Default.DeleteSweep,
-                                        contentDescription = "Clear All Completed",
-                                        tint = MaterialTheme.colorScheme.error
                                     )
                                 }
+                            } else {
+                                // Not Signed In - Show Sign In Button
+                                TextButton(onClick = {
+                                    authViewModel.signOut()
+                                }) {
+                                    Text("Sign In", color = MaterialTheme.colorScheme.primary)
+                                }
                             }
-                        },
-                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            titleContentColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        modifier = Modifier.shadow(
-                            elevation = 2.dp,
-                            spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                        )
+                        }
+
+                        // Settings Icon (direct access)
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings"
+                            )
+                        }
+
+                        // Stats Trophy Icon
+                        IconButton(onClick = onNavigateToStats) {
+                            Icon(
+                                imageVector = Icons.Default.EmojiEvents,
+                                contentDescription = "Stats",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        // Clear All button (only on Completed tab)
+                        if (selectedTab == 2 && completedReminders.isNotEmpty()) {
+                            IconButton(onClick = {
+                                scope.launch {
+                                    viewModel.clearAllCompleted()
+                                }
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteSweep,
+                                    contentDescription = "Clear All Completed",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.shadow(
+                        elevation = 2.dp,
+                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                    )
+                )
+
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    "Create",
+                                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    "Active",
+                                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    "(${activeReminders.size})",
+                                    fontSize = 10.sp,
+                                    color = if (selectedTab == 1)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        text = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    "Missed",
+                                    fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    "(${completedReminders.size})",
+                                    fontSize = 10.sp,
+                                    color = if (selectedTab == 2)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    )
+                    Tab(
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 },
+                        text = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    "Done",
+                                    fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    "(${deletedReminders.size})",
+                                    fontSize = 10.sp,
+                                    color = if (selectedTab == 3)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     )
 
-                    TabRow(
-                        selectedTabIndex = selectedTab,
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.primary,
-                    ) {
-                        Tab(
-                            selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
-                            text = {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        "Create",
-                                        fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        )
-                        Tab(
-                            selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
-                            text = {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        "Active",
-                                        fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 12.sp
-                                    )
-                                    Text(
-                                        "(${activeReminders.size})",
-                                        fontSize = 10.sp,
-                                        color = if (selectedTab == 1)
-                                            MaterialTheme.colorScheme.primary
-                                        else
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        )
-                        Tab(
-                            selected = selectedTab == 2,
-                            onClick = { selectedTab = 2 },
-                            text = {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        "Missed",
-                                        fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 12.sp
-                                    )
-                                    Text(
-                                        "(${completedReminders.size})",
-                                        fontSize = 10.sp,
-                                        color = if (selectedTab == 2)
-                                            MaterialTheme.colorScheme.primary
-                                        else
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        )
-                        Tab(
-                            selected = selectedTab == 3,
-                            onClick = { selectedTab = 3 },
-                            text = {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        "Done",
-                                        fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 12.sp
-                                    )
-                                    Text(
-                                        "(${deletedReminders.size})",
-                                        fontSize = 10.sp,
-                                        color = if (selectedTab == 3)
-                                            MaterialTheme.colorScheme.primary
-                                        else
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        )
-
-                    }
                 }
-            },
+            }
+        },
             containerColor = MaterialTheme.colorScheme.background
         ) { paddingValues ->
             Column(
@@ -1611,16 +1611,4 @@ fun HomeScreen(
             }
         }
     }
-    }
-
-
-
-
-
-
-
-
-
-
-
-
+}

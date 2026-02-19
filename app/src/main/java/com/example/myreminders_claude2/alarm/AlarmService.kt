@@ -21,9 +21,12 @@ import android.speech.tts.TextToSpeech
 import androidx.core.app.NotificationCompat
 import com.example.myreminders_claude2.MainActivity
 import com.example.myreminders_claude2.R
+import com.example.myreminders_claude2.data.RecurrenceType
 import com.example.myreminders_claude2.data.ReminderDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -37,6 +40,10 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
     private var currentReminderId: Long = -1
     private var currentSnoozeCount: Int = 0
     private val handler: Handler = Handler(Looper.getMainLooper())
+
+    // ✅ FIX: Single managed scope - cancelled in onDestroy to prevent leaks
+    private val serviceJob = SupervisorJob()
+    private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
 
     companion object {
         const val CHANNEL_ID = "reminder_alarm_channel"
@@ -74,9 +81,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             }
             ACTION_STOP_ALARM -> {
                 Log.d("AlarmService", "=== ACTION_STOP_ALARM RECEIVED ===")
-                // Just stop the alarm, don't open MainActivity
-                // The user can use notification buttons or swipe to dismiss
-                stopAlarmSound()  // This already stops vibration
+                stopAlarmSound()
                 Log.d("AlarmService", "Alarm sound stopped")
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 Log.d("AlarmService", "Stopped foreground")
@@ -85,9 +90,6 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
                 START_NOT_STICKY
             }
             else -> {
-                // Cancel any pending auto-snooze from previous alarm
-                handler.removeCallbacksAndMessages(null)
-
                 currentReminderId = intent?.getLongExtra("REMINDER_ID", -1) ?: -1
                 currentSnoozeCount = intent?.getIntExtra("SNOOZE_COUNT", 0) ?: 0
                 val title: String = intent?.getStringExtra("REMINDER_TITLE") ?: "Reminder"
@@ -96,7 +98,6 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
 
                 reminderText = if (notes.isNotBlank()) "$title. $notes" else title
 
-                // ✅ Show "Second Reminder" / "Third Reminder" in notification
                 val notification = createNotification(title, notes, currentReminderId, currentSnoozeCount)
                 startForeground(NOTIFICATION_ID, notification)
 
@@ -104,26 +105,27 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
                 startVibration()
                 scheduleAutoSnooze()
 
-                START_NOT_STICKY
+                // ✅ FIX: START_REDELIVER_INTENT ensures alarm restarts if process is killed mid-ring
+                START_REDELIVER_INTENT
             }
         }
     }
 
     private fun scheduleAutoSnooze() {
-        // Capture immutable id to prevent race condition if service is re-entered
-        val reminderId = currentReminderId
-        val snoozeCount = currentSnoozeCount
-
+        // ✅ FIX: Capture ID as immutable local before postDelayed.
+        // Without this, if a second alarm fires before the 30s timer triggers,
+        // the runnable would act on the new alarm's ID instead of this one.
+        val capturedId = currentReminderId
         handler.postDelayed({
-            CoroutineScope(Dispatchers.IO).launch {
+            serviceScope.launch {
                 val database = ReminderDatabase.getDatabase(applicationContext)
-                val reminder = database.reminderDao().getReminderById(reminderId)
+                val reminder = database.reminderDao().getReminderById(capturedId)
 
                 reminder?.let {
                     if (it.snoozeCount < MAX_AUTO_SNOOZES) {
-                        performAutoSnooze(reminderId)
+                        performAutoSnooze(capturedId)
                     } else {
-                        handleDismiss(isManual = false, reminderId = reminderId)
+                        handleDismiss(isManual = false, reminderId = capturedId)
                     }
                 }
             }
@@ -133,7 +135,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
     private fun performAutoSnooze(reminderId: Long = currentReminderId) {
         stopAlarmSound()
 
-        CoroutineScope(Dispatchers.IO).launch {
+        serviceScope.launch {
             val database = ReminderDatabase.getDatabase(applicationContext)
             val reminder = database.reminderDao().getReminderById(reminderId)
 
@@ -141,7 +143,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
                 val newSnoozeCount: Int = it.snoozeCount + 1
                 val newDateTime: Long = System.currentTimeMillis() + SNOOZE_INTERVAL
 
-                database.reminderDao().updateSnoozeCount(currentReminderId, newSnoozeCount)
+                database.reminderDao().updateSnoozeCount(reminderId, newSnoozeCount)
 
                 val updated = it.copy(
                     dateTime = newDateTime,
@@ -156,53 +158,60 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun handleDismiss(isManual: Boolean, reminderId: Long = currentReminderId) {
-        CoroutineScope(Dispatchers.IO).launch {
+        serviceScope.launch {
             val database = ReminderDatabase.getDatabase(applicationContext)
+            val reminderDao = database.reminderDao()
             val completedAt: Long = System.currentTimeMillis()
             val dismissalReason: String = if (isManual) "MANUAL" else "AUTO_SNOOZED"
 
             if (isManual) {
-                // ✅ Manually dismissed → goes to Completed tab
-                database.reminderDao().softDeleteReminder(reminderId, completedAt)
+                // Manually dismissed → goes to Done tab
+                reminderDao.softDeleteReminder(reminderId, completedAt)
             } else {
-                // ✅ Unattended (rang 3 times, ignored) → goes to Missed tab
-                database.reminderDao().markAsCompleted(
-                    currentReminderId,
+                // Unattended (rang 3 times, ignored) → goes to Missed tab
+                reminderDao.markAsCompleted(
+                    reminderId,
                     true,
                     completedAt,
                     dismissalReason
                 )
-                // ✅ Update updatedAt so Firebase sync doesn't revert it
-                val reminder = database.reminderDao().getReminderByIdSync(currentReminderId)
+                // Update updatedAt so Firebase sync doesn't revert it
+                val reminder = reminderDao.getReminderByIdSync(reminderId)
                 reminder?.let {
-                    database.reminderDao().updateReminder(
+                    reminderDao.updateReminder(
                         it.copy(updatedAt = System.currentTimeMillis())
                     )
                 }
             }
 
-            // ✅ Create next occurrence for recurring reminders (only when auto-dismissed)
-            if (!isManual) {
-                val reminderDao = database.reminderDao()
-                val reminder = reminderDao.getReminderByIdSync(currentReminderId)
+            // ✅ FIX: Create next occurrence for recurring reminders on BOTH manual and auto dismiss.
+            // Previously only ran for auto-dismiss, so manually dismissed recurring reminders
+            // would silently break the series.
+            val reminderForRecurrence = reminderDao.getReminderByIdSync(reminderId)
+            if (reminderForRecurrence != null &&
+                reminderForRecurrence.recurrenceType != RecurrenceType.ONE_TIME &&
+                reminderForRecurrence.recurringGroupId != null) {
 
-                if (reminder != null &&
-                    reminder.recurrenceType != "ONE_TIME" &&
-                    reminder.recurringGroupId != null) {
+                // Guard against duplicates in case both service and receiver paths run
+                val existingFuture = reminderDao.getFutureRemindersInGroup(
+                    reminderForRecurrence.recurringGroupId,
+                    System.currentTimeMillis()
+                )
 
-                    val baseTime = maxOf(reminder.dateTime, System.currentTimeMillis())
+                if (existingFuture.isEmpty()) {
+                    val baseTime = maxOf(reminderForRecurrence.dateTime, System.currentTimeMillis())
                     val calendar = java.util.Calendar.getInstance()
                     calendar.timeInMillis = baseTime
 
-                    when (reminder.recurrenceType) {
-                        "HOURLY" -> calendar.add(java.util.Calendar.HOUR_OF_DAY, reminder.recurrenceInterval)
-                        "DAILY" -> calendar.add(java.util.Calendar.DAY_OF_YEAR, reminder.recurrenceInterval)
-                        "WEEKLY" -> calendar.add(java.util.Calendar.WEEK_OF_YEAR, reminder.recurrenceInterval)
-                        "MONTHLY" -> calendar.add(java.util.Calendar.MONTH, reminder.recurrenceInterval)
-                        "ANNUAL" -> calendar.add(java.util.Calendar.YEAR, reminder.recurrenceInterval)
+                    when (reminderForRecurrence.recurrenceType) {
+                        RecurrenceType.HOURLY  -> calendar.add(java.util.Calendar.HOUR_OF_DAY, reminderForRecurrence.recurrenceInterval)
+                        RecurrenceType.DAILY   -> calendar.add(java.util.Calendar.DAY_OF_YEAR,  reminderForRecurrence.recurrenceInterval)
+                        RecurrenceType.WEEKLY  -> calendar.add(java.util.Calendar.WEEK_OF_YEAR, reminderForRecurrence.recurrenceInterval)
+                        RecurrenceType.MONTHLY -> calendar.add(java.util.Calendar.MONTH,        reminderForRecurrence.recurrenceInterval)
+                        RecurrenceType.ANNUAL  -> calendar.add(java.util.Calendar.YEAR,         reminderForRecurrence.recurrenceInterval)
                     }
 
-                    val nextReminder = reminder.copy(
+                    val nextReminder = reminderForRecurrence.copy(
                         id = 0,
                         dateTime = calendar.timeInMillis,
                         isCompleted = false,
@@ -216,6 +225,9 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
                     val newId = reminderDao.insertReminder(nextReminder)
                     val alarmScheduler = AlarmScheduler(applicationContext)
                     alarmScheduler.scheduleAlarm(nextReminder.copy(id = newId))
+                    Log.d("AlarmService", "Created next recurring occurrence with id: $newId")
+                } else {
+                    Log.d("AlarmService", "Next recurring occurrence already exists - skipping")
                 }
             }
         }
@@ -223,13 +235,13 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         stopAlarmSound()
         stopSelf()
     }
+
     private fun createNotification(
         title: String,
         notes: String,
         reminderId: Long,
         snoozeCount: Int = 0
     ): android.app.Notification {
-        // Show "Second Reminder" / "Third Reminder" prefix
         val ringLabel = when (snoozeCount) {
             1 -> "Second Reminder: "
             2 -> "Third Reminder: "
@@ -237,19 +249,20 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         }
         val displayTitle = "$ringLabel$title"
 
-        // Snooze action - use Activity PendingIntent for reliable launching
-        val snoozeIntent = Intent(this, SnoozeDurationActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        // Snooze action
+        val snoozeIntent = Intent(this, AlarmSnoozeReceiver::class.java).apply {
+            action = "com.example.myreminders_claude2.ACTION_SNOOZE"
             putExtra("REMINDER_ID", reminderId)
             putExtra("TITLE", title)
             putExtra("NOTES", notes)
         }
-        val snoozePendingIntent = PendingIntent.getActivity(
+        val snoozePendingIntent = PendingIntent.getBroadcast(
             this,
             reminderId.toInt(),
             snoozeIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
         // Dismiss action
         val dismissIntent = Intent(this, AlarmDismissReceiver::class.java).apply {
             action = "com.example.myreminders_claude2.ACTION_DISMISS"
@@ -287,10 +300,9 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             .setShowWhen(true)
             .setWhen(System.currentTimeMillis())
 
-        // Add actions - these will appear as buttons
         builder.addAction(
             android.R.drawable.ic_lock_idle_alarm,
-            "Snooze",
+            "Snooze 10m",
             snoozePendingIntent
         )
         builder.addAction(
@@ -299,7 +311,6 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             dismissPendingIntent
         )
 
-        // Use BigTextStyle to ensure notification expands and shows buttons
         builder.setStyle(
             NotificationCompat.BigTextStyle()
                 .bigText(notes.ifBlank { "Use buttons below to snooze or dismiss" })
@@ -308,6 +319,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
 
         return builder.build()
     }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -398,12 +410,13 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         }
         textToSpeech = null
 
-        Log.d("AlarmService", "stopAlarmSound() complete - NOT calling stopForeground here")
-        // Don't call stopForeground here - let the action handler do it
+        Log.d("AlarmService", "stopAlarmSound() complete")
     }
 
     override fun onDestroy() {
         stopAlarmSound()
+        // ✅ FIX: Cancel all coroutines when service is destroyed
+        serviceJob.cancel()
         super.onDestroy()
     }
 }

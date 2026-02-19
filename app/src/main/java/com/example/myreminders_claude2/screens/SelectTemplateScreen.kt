@@ -136,43 +136,46 @@ fun SelectTemplateScreen(
         }
 
         // Date/Time Picker Dialog
-        if (showDateTimePicker && selectedTemplate != null) {
-            LaunchedEffect(Unit) {
-                val calendar = Calendar.getInstance()
-                calendar.timeInMillis = selectedDateTime
+        // ✅ FIX: Use let to safely unpack selectedTemplate — eliminates !! crash risk.
+        if (showDateTimePicker) {
+            selectedTemplate?.let { template ->
+                LaunchedEffect(Unit) {
+                    val calendar = Calendar.getInstance()
+                    calendar.timeInMillis = selectedDateTime
 
-                DatePickerDialog(
-                    context,
-                    { _, year, month, day ->
-                        TimePickerDialog(
-                            context,
-                            { _, hour, minute ->
-                                calendar.set(year, month, day, hour, minute, 0)
-                                selectedDateTime = calendar.timeInMillis
+                    DatePickerDialog(
+                        context,
+                        { _, year, month, day ->
+                            TimePickerDialog(
+                                context,
+                                { _, hour, minute ->
+                                    calendar.set(year, month, day, hour, minute, 0)
+                                    selectedDateTime = calendar.timeInMillis
 
-                                // Create reminder from template
-                                viewModel.createReminderFromTemplate(
-                                    template = selectedTemplate!!,
-                                    dateTime = selectedDateTime
-                                )
+                                    // Create reminder from template
+                                    viewModel.createReminderFromTemplate(
+                                        template = template,
+                                        dateTime = selectedDateTime
+                                    )
 
-                                // Navigate back
-                                onReminderCreated()
-                            },
-                            calendar.get(Calendar.HOUR_OF_DAY),
-                            calendar.get(Calendar.MINUTE),
-                            false
-                        ).show()
-                    },
-                    calendar.get(Calendar.YEAR),
-                    calendar.get(Calendar.MONTH),
-                    calendar.get(Calendar.DAY_OF_MONTH)
-                ).apply {
-                    setOnCancelListener {
-                        showDateTimePicker = false
-                        selectedTemplate = null
-                    }
-                }.show()
+                                    // Navigate back
+                                    onReminderCreated()
+                                },
+                                calendar.get(Calendar.HOUR_OF_DAY),
+                                calendar.get(Calendar.MINUTE),
+                                false
+                            ).show()
+                        },
+                        calendar.get(Calendar.YEAR),
+                        calendar.get(Calendar.MONTH),
+                        calendar.get(Calendar.DAY_OF_MONTH)
+                    ).apply {
+                        setOnCancelListener {
+                            showDateTimePicker = false
+                            selectedTemplate = null
+                        }
+                    }.show()
+                }
             }
         }
     }

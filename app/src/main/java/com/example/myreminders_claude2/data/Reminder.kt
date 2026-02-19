@@ -1,9 +1,29 @@
 package com.example.myreminders_claude2.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "reminders")
+// ✅ FIX: Added indices on the columns most frequently used in DAO queries.
+// Without indices, every query does a full table scan. As the reminder count
+// grows (hundreds of completed/deleted reminders), queries slow down noticeably.
+//
+// Index breakdown:
+//   idx_active      — powers getAllActiveReminders() (isDeleted=0, isCompleted=0, ORDER BY dateTime)
+//   idx_completed   — powers getCompletedReminders() (isCompleted=1, isDeleted=0, ORDER BY completedAt)
+//   idx_deleted     — powers getDeletedReminders() (isDeleted=1, ORDER BY deletedAt)
+//   idx_group       — powers getFutureRemindersInGroup() and all recurringGroupId lookups
+//   idx_category    — powers getActiveRemindersByCategory() and getRemindersCountByCategory()
+@Entity(
+    tableName = "reminders",
+    indices = [
+        Index(value = ["isDeleted", "isCompleted", "dateTime"],  name = "idx_active"),
+        Index(value = ["isCompleted", "isDeleted", "completedAt"], name = "idx_completed"),
+        Index(value = ["isDeleted", "deletedAt"],                name = "idx_deleted"),
+        Index(value = ["recurringGroupId", "dateTime"],          name = "idx_group"),
+        Index(value = ["mainCategory"],                          name = "idx_category")
+    ]
+)
 data class Reminder(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -42,17 +62,17 @@ data class Reminder(
 // Recurrence type constants
 object RecurrenceType {
     const val ONE_TIME = "ONE_TIME"
-    const val HOURLY = "HOURLY"
-    const val DAILY = "DAILY"
-    const val WEEKLY = "WEEKLY"
-    const val MONTHLY = "MONTHLY"
-    const val ANNUAL = "ANNUAL"
+    const val HOURLY   = "HOURLY"
+    const val DAILY    = "DAILY"
+    const val WEEKLY   = "WEEKLY"
+    const val MONTHLY  = "MONTHLY"
+    const val ANNUAL   = "ANNUAL"
 }
 
 // Category constants
 object CategoryDefaults {
-    const val WORK = "WORK"
+    const val WORK     = "WORK"
     const val PERSONAL = "PERSONAL"
-    const val HEALTH = "HEALTH"
-    const val FINANCE = "FINANCE"
+    const val HEALTH   = "HEALTH"
+    const val FINANCE  = "FINANCE"
 }

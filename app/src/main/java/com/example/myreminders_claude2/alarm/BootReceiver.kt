@@ -11,30 +11,32 @@ import kotlinx.coroutines.launch
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        Log.d("BootReceiver", "Received action: ${intent.action}")
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
+            // ✅ FIX: goAsync() prevents Android from killing the receiver before
+            // the coroutine finishes re-scheduling all alarms after a phone restart.
+            val pendingResult = goAsync()
 
-        when (intent.action) {
-            Intent.ACTION_BOOT_COMPLETED,
-            Intent.ACTION_LOCKED_BOOT_COMPLETED,
-            Intent.ACTION_MY_PACKAGE_REPLACED,
-            Intent.ACTION_TIME_CHANGED,
-            Intent.ACTION_TIMEZONE_CHANGED -> {
-                Log.d("BootReceiver", "Rescheduling all alarms due to: ${intent.action}")
-                // Re-schedule all active reminders after boot
-                val database = ReminderDatabase.getDatabase(context)
-                val alarmScheduler = AlarmScheduler(context)
+            Log.d("BootReceiver", "Boot completed - re-scheduling all active alarms")
 
-                CoroutineScope(Dispatchers.IO).launch {
-                    // Get all active (non-completed) reminders - one-time fetch
+            val database = ReminderDatabase.getDatabase(context)
+            val alarmScheduler = AlarmScheduler(context)
+
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    // One-time sync fetch (not a Flow) so the receiver exits cleanly
                     val reminders = database.reminderDao().getAllActiveRemindersSync()
+                    Log.d("BootReceiver", "Re-scheduling ${reminders.size} active reminders")
 
-                    // Re-schedule each reminder
                     reminders.forEach { reminder ->
-                        // Only re-schedule if the time is in the future
                         if (reminder.dateTime > System.currentTimeMillis()) {
                             alarmScheduler.scheduleAlarm(reminder)
                         }
                     }
+
+                    Log.d("BootReceiver", "All alarms re-scheduled successfully")
+                } finally {
+                    // ✅ Always release so Android knows the receiver is done
+                    pendingResult.finish()
                 }
             }
         }

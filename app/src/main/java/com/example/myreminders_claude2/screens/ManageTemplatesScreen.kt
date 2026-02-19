@@ -135,35 +135,44 @@ fun ManageTemplatesScreen(
     }
 
     // Edit Template Dialog
-    if (showEditDialog && selectedTemplate != null) {
-        EditTemplateDialog(
-            template = selectedTemplate!!,
-            onDismiss = {
-                showEditDialog = false
-                selectedTemplate = null
-            },
-            onSave = { updatedTemplate ->
-                viewModel.updateTemplate(updatedTemplate)
-                showEditDialog = false
-                selectedTemplate = null
-            }
-        )
+    // ✅ FIX: Capture template as immutable local via let — eliminates !! crash risk
+    // and ensures the lambda uses the same snapshot that opened the dialog.
+    if (showEditDialog) {
+        selectedTemplate?.let { template ->
+            EditTemplateDialog(
+                template = template,
+                onDismiss = {
+                    showEditDialog = false
+                    selectedTemplate = null
+                },
+                onSave = { updatedTemplate ->
+                    viewModel.updateTemplate(updatedTemplate)
+                    showEditDialog = false
+                    selectedTemplate = null
+                }
+            )
+        }
     }
 
     // Delete Template Dialog
-    if (showDeleteDialog && selectedTemplate != null) {
-        DeleteTemplateDialog(
-            template = selectedTemplate!!,
-            onDismiss = {
-                showDeleteDialog = false
-                selectedTemplate = null
-            },
-            onConfirm = {
-                viewModel.deleteTemplate(selectedTemplate!!)
-                showDeleteDialog = false
-                selectedTemplate = null
-            }
-        )
+    // ✅ FIX: Capture template as immutable local via let — the onConfirm lambda
+    // previously used selectedTemplate!! which could crash if state changed
+    // between the button tap and the lambda executing.
+    if (showDeleteDialog) {
+        selectedTemplate?.let { template ->
+            DeleteTemplateDialog(
+                template = template,
+                onDismiss = {
+                    showDeleteDialog = false
+                    selectedTemplate = null
+                },
+                onConfirm = {
+                    viewModel.deleteTemplate(template)
+                    showDeleteDialog = false
+                    selectedTemplate = null
+                }
+            )
+        }
     }
 }
 

@@ -1,7 +1,6 @@
 package com.example.myreminders_claude2.utils
 
 import java.util.*
-import kotlin.math.abs
 
 data class ParsedReminder(
     val title: String,
@@ -149,7 +148,7 @@ object VoiceParser {
         if (recurrenceDayOfWeek != null) {
             val calendar = Calendar.getInstance()
             calendar.timeInMillis = dateTime
-            setToDayOfWeek(calendar, recurrenceDayOfWeek, true) // Force next occurrence
+            setToDayOfWeek(calendar, recurrenceDayOfWeek, true)
             dateTime = calendar.timeInMillis
         }
 
@@ -157,8 +156,19 @@ object VoiceParser {
         val title = smartCapitalize(textWithoutDateTime.trim())
 
         // Phase 7: Detect category and type
-        val category = detectCategory(text) // Use original text for better context
+        val category = detectCategory(text)
         val type = detectType(text, category)
+
+        // Log final parsed result
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = dateTime
+        val dateFormat = java.text.SimpleDateFormat("EEE, MMM dd yyyy 'at' hh:mm a", java.util.Locale.getDefault())
+        android.util.Log.d("VoiceParser", "===== FINAL RESULT =====")
+        android.util.Log.d("VoiceParser", "Title: '$title'")
+        android.util.Log.d("VoiceParser", "DateTime: ${dateFormat.format(cal.time)}")
+        android.util.Log.d("VoiceParser", "Category: $category, Type: $type")
+        android.util.Log.d("VoiceParser", "Recurrence: $recurrenceType (interval: $recurrenceInterval, dayOfWeek: $recurrenceDayOfWeek)")
+        android.util.Log.d("VoiceParser", "========================")
 
         return ParsedReminder(
             title = title,
@@ -215,8 +225,8 @@ object VoiceParser {
     private fun extractRelativeTime(text: String): Long? {
         val lowerText = text.lowercase()
 
-        // "in X minutes/hours"
-        var pattern = Regex("in\\s+(\\d+)\\s+(minute|hour)s?", RegexOption.IGNORE_CASE)
+        // "in X minutes/hours/days/weeks"
+        var pattern = Regex("in\\s+(\\d+)\\s+(minute|hour|day|week)s?", RegexOption.IGNORE_CASE)
         var match = pattern.find(lowerText)
         if (match != null) {
             val amount = match.groupValues[1].toIntOrNull() ?: return null
@@ -225,6 +235,8 @@ object VoiceParser {
             when (unit) {
                 "minute" -> calendar.add(Calendar.MINUTE, amount)
                 "hour" -> calendar.add(Calendar.HOUR_OF_DAY, amount)
+                "day" -> calendar.add(Calendar.DAY_OF_YEAR, amount)
+                "week" -> calendar.add(Calendar.WEEK_OF_YEAR, amount)
             }
             calendar.set(Calendar.SECOND, 0)
             return calendar.timeInMillis
@@ -250,7 +262,7 @@ object VoiceParser {
 
     private fun removeRelativeTimeText(text: String): String {
         var result = text
-        result = result.replace(Regex("in\\s+\\d+\\s+(minute|hour)s?", RegexOption.IGNORE_CASE), "")
+        result = result.replace(Regex("in\\s+\\d+\\s+(minute|hour|day|week)s?", RegexOption.IGNORE_CASE), "")
         result = result.replace(Regex("\\d+\\s+(minute|hour)s?\\s+from\\s+now", RegexOption.IGNORE_CASE), "")
         return result.replace(Regex("\\s+"), " ").trim()
     }
@@ -260,10 +272,37 @@ object VoiceParser {
     private fun extractRecurrence(text: String): Triple<String, Int, Int?> {
         val lowerText = text.lowercase()
 
+        // "every weekday" MUST be checked FIRST
+        if (lowerText.contains("every weekday")) {
+            return Triple("DAILY", 1, null)
+        }
+
         // "every morning/afternoon/evening/night" = DAILY
         if (lowerText.contains("every morning") || lowerText.contains("every afternoon") ||
             lowerText.contains("every evening") || lowerText.contains("every night")) {
             return Triple("DAILY", 1, null)
+        }
+
+        // "every other day/week"
+        if (lowerText.contains("every other day")) {
+            return Triple("DAILY", 2, null)
+        }
+        if (lowerText.contains("every other week")) {
+            return Triple("WEEKLY", 2, null)
+        }
+
+        // "every 2nd/3rd/second/third day"
+        val everyOrdinalNum = Regex("every\\s+(\\d+)(st|nd|rd|th)?\\s+day", RegexOption.IGNORE_CASE)
+        everyOrdinalNum.find(lowerText)?.let { match ->
+            val interval = match.groupValues[1].toIntOrNull() ?: 2
+            return Triple("DAILY", interval, null)
+        }
+
+        val everyOrdinalWord = Regex("every\\s+(second|third|fourth|fifth)\\s+day", RegexOption.IGNORE_CASE)
+        everyOrdinalWord.find(lowerText)?.let { match ->
+            val wordToNum = mapOf("second" to 2, "third" to 3, "fourth" to 4, "fifth" to 5)
+            val interval = wordToNum[match.groupValues[1].lowercase()] ?: 2
+            return Triple("DAILY", interval, null)
         }
 
         // "every [weekday]"
@@ -302,9 +341,19 @@ object VoiceParser {
     private fun removeRecurrenceText(text: String): String {
         var result = text
 
+        // Remove "every other X" first
+        result = result.replace(Regex("every\\s+other\\s+day", RegexOption.IGNORE_CASE), "")
+        result = result.replace(Regex("every\\s+other\\s+week", RegexOption.IGNORE_CASE), "")
+        result = result.replace(Regex("every\\s+\\d+(st|nd|rd|th)?\\s+day", RegexOption.IGNORE_CASE), "")
+        result = result.replace(Regex("every\\s+(second|third|fourth|fifth)\\s+day", RegexOption.IGNORE_CASE), "")
+
+        // Remove "every weekday" BEFORE removing individual day names
+        result = result.replace(Regex("every\\s+weekday", RegexOption.IGNORE_CASE), "")
+
         // Remove "every morning/afternoon/evening/night" and "everyday"
         result = result.replace(Regex("everyday", RegexOption.IGNORE_CASE), "")
         result = result.replace(Regex("every\\s+(morning|afternoon|evening|night)", RegexOption.IGNORE_CASE), "")
+
         // Remove "every X unit"
         result = result.replace(Regex("every\\s+\\d+\\s+(hour|day|week|month|year)s?", RegexOption.IGNORE_CASE), "")
 
@@ -314,7 +363,7 @@ object VoiceParser {
 
         // Remove "every [weekday]"
         DAYS_OF_WEEK.keys.forEach { day ->
-            result = result.replace(Regex("every\\s+$day", RegexOption.IGNORE_CASE), "")
+            result = result.replace(Regex("every\\s+$day\\b", RegexOption.IGNORE_CASE), "")
         }
 
         return result.replace(Regex("\\s+"), " ").trim()
@@ -332,7 +381,7 @@ object VoiceParser {
         var hasTimeOfDay = false
         var explicitAmPm = false
 
-        // Extract explicit time first (3pm, 3:30pm, 3 p.m., 15:00)
+        // Extract explicit time first
         val timePatterns = listOf(
             Regex("(\\d{1,2})\\s*:?\\s*(\\d{2})?\\s*([ap]\\.?m\\.?)", RegexOption.IGNORE_CASE),
             Regex("at\\s+(\\d{1,2})\\s*:?\\s*(\\d{2})?\\s*([ap]\\.?m\\.?)?", RegexOption.IGNORE_CASE),
@@ -357,7 +406,6 @@ object VoiceParser {
                         finalHour = 0
                     }
                 } else {
-                    // Smart AM/PM inference
                     finalHour = inferAmPm(hour, lowerText)
                 }
 
@@ -365,9 +413,29 @@ object VoiceParser {
                 calendar.set(Calendar.MINUTE, minute)
                 hasTimeOfDay = true
 
-                // Remove time from text
                 cleanedText = cleanedText.replace(match.value, "")
                 break
+            }
+        }
+
+        // Context-aware meal times
+        if (!hasTimeOfDay) {
+            when {
+                lowerText.contains("breakfast") -> {
+                    calendar.set(Calendar.HOUR_OF_DAY, 8)
+                    calendar.set(Calendar.MINUTE, 0)
+                    hasTimeOfDay = true
+                }
+                lowerText.contains("lunch") -> {
+                    calendar.set(Calendar.HOUR_OF_DAY, 12)
+                    calendar.set(Calendar.MINUTE, 30)
+                    hasTimeOfDay = true
+                }
+                lowerText.contains("dinner") -> {
+                    calendar.set(Calendar.HOUR_OF_DAY, 19)
+                    calendar.set(Calendar.MINUTE, 0)
+                    hasTimeOfDay = true
+                }
             }
         }
 
@@ -400,6 +468,23 @@ object VoiceParser {
         // Extract date
         var dayShift = 0
         when {
+            lowerText.contains("next weekend") -> {
+                setToDayOfWeek(calendar, 7, true)
+                dayShift = -1
+                cleanedText = cleanedText.replace(Regex("\\bnext\\s+weekend\\b", RegexOption.IGNORE_CASE), "")
+            }
+            lowerText.contains("this weekend") || lowerText.contains("the weekend") -> {
+                val currentDay = calendar.get(Calendar.DAY_OF_WEEK)
+                if (currentDay == 7) {
+                    dayShift = 0
+                } else if (currentDay == 1) {
+                    dayShift = 6
+                } else {
+                    setToDayOfWeek(calendar, 7, false)
+                }
+                dayShift = -1
+                cleanedText = cleanedText.replace(Regex("\\b(this\\s+)?weekend\\b", RegexOption.IGNORE_CASE), "")
+            }
             lowerText.contains("tomorrow") -> {
                 dayShift = 1
                 cleanedText = cleanedText.replace(Regex("\\btomorrow\\b", RegexOption.IGNORE_CASE), "")
@@ -415,7 +500,7 @@ object VoiceParser {
             if (lowerText.contains("next $day") || (lowerText.contains(day) && !lowerText.contains("this $day"))) {
                 setToDayOfWeek(calendar, dayNum, true)
                 cleanedText = cleanedText.replace(Regex("\\b(next\\s+)?$day\\b", RegexOption.IGNORE_CASE), "")
-                dayShift = -1 // Prevent tomorrow logic
+                dayShift = -1
                 break
             } else if (lowerText.contains("this $day")) {
                 setToDayOfWeek(calendar, dayNum, false)
@@ -429,7 +514,7 @@ object VoiceParser {
             calendar.add(Calendar.DAY_OF_YEAR, dayShift)
         }
 
-        // Handle "on the [number]" for monthly reminders (both digits and words)
+        // Handle "on the [number]" for monthly reminders
         val wordToNumber = mapOf(
             "first" to 1, "second" to 2, "third" to 3, "fourth" to 4, "fifth" to 5,
             "sixth" to 6, "seventh" to 7, "eighth" to 8, "ninth" to 9, "tenth" to 10,
@@ -441,12 +526,10 @@ object VoiceParser {
             "twenty-ninth" to 29, "thirtieth" to 30, "thirty-first" to 31
         )
 
-        // Try numeric pattern first: "on the 1st", "on the 15th"
         var dayOfMonthPattern = Regex("on\\s+the\\s+(\\d{1,2})(st|nd|rd|th)?", RegexOption.IGNORE_CASE)
         var match = dayOfMonthPattern.find(lowerText)
         var dayOfMonth: Int? = match?.groupValues?.get(1)?.toIntOrNull()
 
-        // Try word pattern: "on the first", "on the fifteenth"
         if (dayOfMonth == null) {
             val wordPattern = Regex("on\\s+the\\s+(\\w+(?:-\\w+)?)", RegexOption.IGNORE_CASE)
             match = wordPattern.find(lowerText)
@@ -456,10 +539,8 @@ object VoiceParser {
             }
         }
 
-        // Set the day if found
         if (dayOfMonth != null && dayOfMonth in 1..31) {
             calendar.set(Calendar.DAY_OF_MONTH, dayOfMonth!!)
-            // If that day already passed this month, move to next month
             if (calendar.timeInMillis < System.currentTimeMillis()) {
                 calendar.add(Calendar.MONTH, 1)
             }
@@ -468,7 +549,7 @@ object VoiceParser {
             }
         }
 
-        // Remove temporal prepositions and time markers (with word boundaries!)
+        // Remove temporal prepositions and time markers
         cleanedText = cleanedText.replace(Regex("\\bat\\b", RegexOption.IGNORE_CASE), "")
         cleanedText = cleanedText.replace(Regex("\\bon\\b", RegexOption.IGNORE_CASE), "")
         cleanedText = cleanedText.replace(Regex("\\bby\\b", RegexOption.IGNORE_CASE), "")
@@ -484,10 +565,10 @@ object VoiceParser {
         cleanedText = cleanedText.replace(Regex("\\bthe\\s+1st\\b", RegexOption.IGNORE_CASE), "")
         cleanedText = cleanedText.replace(Regex("\\s+"), " ").trim()
 
-        // Remove leading "to" (task indicator)
+        // Remove leading "to"
         cleanedText = cleanedText.replace(Regex("^to\\s+", RegexOption.IGNORE_CASE), "")
 
-        // If time ended up in the past, move to tomorrow (unless a specific future day was set)
+        // If time ended up in the past, move to tomorrow
         if (dayShift == 0 && calendar.timeInMillis < System.currentTimeMillis()) {
             calendar.add(Calendar.DAY_OF_YEAR, 1)
         }
@@ -495,12 +576,10 @@ object VoiceParser {
         return Pair(calendar.timeInMillis, cleanedText)
     }
 
-    // Smart AM/PM inference
     private fun inferAmPm(hour: Int, context: String): Int {
-        if (hour >= 13) return hour // Already 24-hour format
-        if (hour == 0) return 0 // Midnight
+        if (hour >= 13) return hour
+        if (hour == 0) return 0
 
-        // Context clues
         val isPm = context.contains("afternoon") || context.contains("evening") ||
                 context.contains("night") || context.contains("dinner") ||
                 context.contains("lunch")
@@ -511,10 +590,9 @@ object VoiceParser {
             isPm && hour < 12 -> hour + 12
             isAm && hour == 12 -> 0
             isAm -> hour
-            // Default heuristic: business hours = PM, early hours = AM
-            hour in 8..11 -> hour // Morning hours stay AM
-            hour in 1..7 -> hour + 12 // Afternoon/evening = PM
-            hour == 12 -> 12 // Noon
+            hour in 8..11 -> hour
+            hour in 1..7 -> hour + 12
+            hour == 12 -> 12
             else -> hour
         }
     }

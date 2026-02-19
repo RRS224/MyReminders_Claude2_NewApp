@@ -166,59 +166,62 @@ fun DeletedRemindersTab(
     }
 
     // Permanent Delete Dialog
-    if (showPermanentDeleteDialog && selectedReminder != null) {
-        AlertDialog(
-            onDismissRequest = {
-                showPermanentDeleteDialog = false
-                selectedReminder = null
-            },
-            title = { Text("Delete Forever?") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("This will permanently delete:")
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer
-                        )
-                    ) {
-                        Text(
-                            selectedReminder!!.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(12.dp),
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    }
-                    Text(
-                        "This action cannot be undone.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        performHapticFeedback(context)
-                        viewModel.permanentlyDeleteSingle(selectedReminder!!.id)
-                        showPermanentDeleteDialog = false
-                        selectedReminder = null
-                    },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Delete Forever")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
+    // ✅ FIX: Use let to safely unpack selectedReminder — eliminates !! crash risk.
+    if (showPermanentDeleteDialog) {
+        selectedReminder?.let { reminder ->
+            AlertDialog(
+                onDismissRequest = {
                     showPermanentDeleteDialog = false
                     selectedReminder = null
-                }) {
-                    Text("Cancel")
+                },
+                title = { Text("Delete Forever?") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("This will permanently delete:")
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Text(
+                                reminder.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(12.dp),
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                        Text(
+                            "This action cannot be undone.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            performHapticFeedback(context)
+                            viewModel.permanentlyDeleteSingle(reminder.id)
+                            showPermanentDeleteDialog = false
+                            selectedReminder = null
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Delete Forever")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showPermanentDeleteDialog = false
+                        selectedReminder = null
+                    }) {
+                        Text("Cancel")
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 }
 

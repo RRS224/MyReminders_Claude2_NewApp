@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [Reminder::class, Category::class, Template::class, PermanentlyDeleted::class],
-    version = 6,
+    version = 7, // ✅ Bumped from 6 → 7 for index migration
     exportSchema = false
 )
 abstract class ReminderDatabase : RoomDatabase() {
@@ -82,7 +82,6 @@ abstract class ReminderDatabase : RoomDatabase() {
             }
         }
 
-        // ✅ NEW: Migration 5 to 6 - adds permanently deleted tracking table
         private val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("""
@@ -90,6 +89,37 @@ abstract class ReminderDatabase : RoomDatabase() {
                         reminderId INTEGER PRIMARY KEY NOT NULL
                     )
                 """.trimIndent())
+            }
+        }
+
+        // ✅ NEW: Migration 6 → 7 — adds indices for query performance.
+        // These speed up the most common DAO queries (active reminders list,
+        // completed tab, deleted tab, recurring group lookups, category filters).
+        // Existing users' data is untouched — indices are additive only.
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Speeds up: getAllActiveReminders(), getAllActiveRemindersSync()
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS idx_active ON reminders (isDeleted, isCompleted, dateTime)"
+                )
+                // Speeds up: getCompletedReminders(), getCompletedRemindersByCategory/RecurrenceType()
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS idx_completed ON reminders (isCompleted, isDeleted, completedAt)"
+                )
+                // Speeds up: getDeletedReminders(), purgeOldDeleted(), purgeExcessDeleted()
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS idx_deleted ON reminders (isDeleted, deletedAt)"
+                )
+                // Speeds up: getFutureRemindersInGroup(), getRemindersInRecurringGroup(),
+                //            deleteFutureRemindersInGroup(), getActiveCountInRecurringGroup()
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS idx_group ON reminders (recurringGroupId, dateTime)"
+                )
+                // Speeds up: getActiveRemindersByCategory(), getRemindersCountByCategory(),
+                //            updateCategoryForAllReminders()
+                database.execSQL(
+                    "CREATE INDEX IF NOT EXISTS idx_category ON reminders (mainCategory)"
+                )
             }
         }
 
@@ -105,7 +135,8 @@ abstract class ReminderDatabase : RoomDatabase() {
                         MIGRATION_2_3,
                         MIGRATION_3_4,
                         MIGRATION_4_5,
-                        MIGRATION_5_6
+                        MIGRATION_5_6,
+                        MIGRATION_6_7  // ✅ New index migration
                     )
                     .fallbackToDestructiveMigration()
                     .addCallback(DatabaseCallback(context))

@@ -194,18 +194,23 @@ fun ManageCategoriesScreen(
     }
 
     // Delete Category Dialog
-    if (showDeleteDialog && categoryToDelete != null) {
-        DeleteCategoryDialog(
-            viewModel = viewModel,
-            categoryManager = categoryManager,
-            categoryId = categoryToDelete!!.first,
-            categoryName = categoryToDelete!!.second,
-            remindersCount = remindersUsingCategory,
-            onDismiss = {
-                showDeleteDialog = false
-                categoryToDelete = null
-            }
-        )
+    // ✅ FIX: Use let to safely unpack categoryToDelete — eliminates !! crash risk.
+    // If state changes between recompositions, the dialog simply won't show
+    // rather than crashing with a NullPointerException.
+    if (showDeleteDialog) {
+        categoryToDelete?.let { (catId, catName) ->
+            DeleteCategoryDialog(
+                viewModel = viewModel,
+                categoryManager = categoryManager,
+                categoryId = catId,
+                categoryName = catName,
+                remindersCount = remindersUsingCategory,
+                onDismiss = {
+                    showDeleteDialog = false
+                    categoryToDelete = null
+                }
+            )
+        }
     }
 }
 
