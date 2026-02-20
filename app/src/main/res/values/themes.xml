@@ -1,5 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!--
+        Original app theme — used by <application> tag and SnoozeDurationActivity.
+        Must be kept exactly as-is or those references will break.
+    -->
     <style name="Theme.MyReminders_Claude2" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!--
+        Base theme — used AFTER the splash screen dismisses (via postSplashScreenTheme).
+        Minimal here because Material3 colour scheme is set entirely in Kotlin/Compose.
+        windowBackground black prevents a white flash before Compose renders.
+    -->
+    <style name="Theme.MyReminders" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!--
+        Splash screen theme — "The Amber Vigil"
+        Applied to MainActivity in AndroidManifest.xml.
+        Near-black background, amber bell icon.
+        postSplashScreenTheme switches to Theme.MyReminders once splash is done.
+    -->
+    <style name="Theme.MyReminders.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#090507</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_bell</item>
+        <item name="windowSplashScreenIconBackgroundColor">#1A0E0A</item>
+        <item name="windowSplashScreenAnimationDuration">0</item>
+        <item name="postSplashScreenTheme">@style/Theme.MyReminders</item>
+    </style>
+
 </resources>

@@ -289,7 +289,17 @@ fun AddReminderScreen(
                                 context,
                                 { _, hour, minute ->
                                     calendar.set(year, month, day, hour, minute, 0)
-                                    selectedDateTime = calendar.timeInMillis
+                                    val newTime = calendar.timeInMillis
+                                    // ✅ Guard: reject if today was picked but time is already past
+                                    if (newTime < System.currentTimeMillis() - (60 * 1000)) {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            "⚠️ Cannot select a time in the past",
+                                            android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                    } else {
+                                        selectedDateTime = newTime
+                                    }
                                 },
                                 calendar.get(Calendar.HOUR_OF_DAY),
                                 calendar.get(Calendar.MINUTE),

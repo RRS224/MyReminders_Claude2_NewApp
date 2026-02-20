@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Splash screen bell — Amber Vigil
+    All shapes use <path> only — <rect> is not valid in Android vector drawables.
+    Viewport 108×108. Background colour set in themes.xml.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Warm glow halo behind bell -->
+    <path
+        android:pathData="M54,58 m-26,0 a26,28 0 1,0 52,0 a26,28 0 1,0 -52,0"
+        android:fillColor="#F5A032"
+        android:fillAlpha="0.18"/>
+
+    <!-- Crown ring — thin oval loop at top -->
+    <path
+        android:pathData="M49,13 a5,3.5 0 1,0 10,0 a5,3.5 0 1,0 -10,0"
+        android:strokeColor="#F5A032"
+        android:strokeWidth="2.2"
+        android:fillColor="#00000000"/>
+
+    <!-- Crown stem — rect converted to path: x=51.5 y=15.5 w=5 h=7 -->
+    <path
+        android:pathData="M51.5,15.5 L56.5,15.5 L56.5,22.5 L51.5,22.5 Z"
+        android:fillColor="#F5A032"/>
+
+    <!-- Dome — upper semicircle, centre (54,43) radius 19 -->
+    <path
+        android:pathData="M35,43 A19,19 0 0,1 73,43 Z"
+        android:fillColor="#F5A032"/>
+
+    <!-- Left-lit dome overlay -->
+    <path
+        android:pathData="M35,43 A19,19 0 0,1 54,24 L54,43 Z"
+        android:fillColor="#FFEAA0"
+        android:fillAlpha="0.30"/>
+
+    <!-- Bell body — trapezoid with bowed sides -->
+    <path
+        android:pathData="M35,43 C21,52 20,64 24,70 L84,70 C88,64 87,52 73,43 Z"
+        android:fillColor="#F5A032"/>
+
+    <!-- Left-lit body overlay -->
+    <path
+        android:pathData="M35,43 C21,52 20,64 24,70 L54,70 L54,43 Z"
+        android:fillColor="#FFEAA0"
+        android:fillAlpha="0.22"/>
+
+    <!-- Specular highlight on dome -->
+    <path
+        android:pathData="M40,30 a6,4.5 0 1,0 12,0 a6,4.5 0 1,0 -12,0"
+        android:fillColor="#FFF8DC"
+        android:fillAlpha="0.60"/>
+
+    <!-- Rim plate — rect converted to path: M20,70 w=68 h=6 rounded -->
+    <path
+        android:pathData="M23,70 L85,70 Q88,70 88,73 L88,76 Q88,76 85,76 L23,76 Q20,76 20,73 L20,70 Q20,70 23,70 Z"
+        android:fillColor="#D07818"/>
+
+    <!-- Rim top catch-light -->
+    <path
+        android:pathData="M24,71.5 L84,71.5"
+        android:strokeColor="#FFC860"
+        android:strokeWidth="1.4"
+        android:strokeAlpha="0.65"
+        android:fillColor="#00000000"/>
+
+    <!-- Clapper stem — rect converted to path: x=51.5 y=76 w=5 h=9 -->
+    <path
+        android:pathData="M51.5,76 L56.5,76 L56.5,85 L51.5,85 Z"
+        android:fillColor="#B86010"/>
+
+    <!-- Clapper ball -->
+    <path
+        android:pathData="M49,85 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0"
+        android:fillColor="#B86010"/>
+
+    <!-- Ding dot outer bloom -->
+    <path
+        android:pathData="M69,18 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0"
+        android:fillColor="#FFEEA0"
+        android:fillAlpha="0.28"/>
+
+    <!-- Ding dot core white -->
+    <path
+        android:pathData="M71,18 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.95"/>
+
+</vector>

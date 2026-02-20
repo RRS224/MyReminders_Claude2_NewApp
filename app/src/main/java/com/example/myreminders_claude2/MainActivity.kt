@@ -4,6 +4,8 @@ package com.example.myreminders_claude2
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import com.google.firebase.crashlytics.FirebaseCrashlytics
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -22,6 +24,10 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -93,6 +99,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.fadeIn
@@ -105,7 +114,11 @@ class MainActivity : ComponentActivity() {
     private val viewModel: ReminderViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // ✅ Install splash screen BEFORE super.onCreate — required by the API
+        installSplashScreen()
         super.onCreate(savedInstanceState)
+        // ✅ Enable Crashlytics crash reporting
+        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(true)
         enableEdgeToEdge()
 
         val reminderId = intent.getLongExtra("REMINDER_ID", -1)
@@ -230,7 +243,12 @@ fun MainNavigation(
         navController = navController,
         startDestination = "home"
     ) {
-        composable("home") {
+        composable("home",
+        enterTransition = { slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutHorizontally(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+    ) {
             HomeScreen(
                 viewModel = viewModel,
                 authViewModel = authViewModel,
@@ -245,13 +263,23 @@ fun MainNavigation(
                 onNavigateToStats = { navController.navigate("stats") }
             )
         }
-        composable("add") {
+        composable("add",
+        enterTransition = { slideInVertically(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutVertically(animationSpec = tween(280)) { it } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInVertically(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutVertically(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+    ) {
             AddReminderScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }
-        composable("voiceInput") {
+        composable("voiceInput",
+        enterTransition = { slideInVertically(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutVertically(animationSpec = tween(280)) { it } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInVertically(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutVertically(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+    ) {
             VoiceInputScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onVoiceResult = { spokenText ->
@@ -316,7 +344,12 @@ fun MainNavigation(
                     defaultValue = -1
                 }
             )
-        ) { backStackEntry ->
+        ,
+        enterTransition = { slideInVertically(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutVertically(animationSpec = tween(280)) { it } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInVertically(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutVertically(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+    ) { backStackEntry ->
             val encodedTitle = backStackEntry.arguments?.getString("title") ?: ""
             val encodedNotes = backStackEntry.arguments?.getString("notes") ?: ""
             val dateTime = backStackEntry.arguments?.getLong("dateTime") ?: 0L
@@ -368,7 +401,12 @@ fun MainNavigation(
         composable(
             route = "edit/{reminderId}",
             arguments = listOf(navArgument("reminderId") { type = NavType.LongType })
-        ) { backStackEntry ->
+        ,
+        enterTransition = { slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutHorizontally(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+    ) { backStackEntry ->
             val reminderId = backStackEntry.arguments?.getLong("reminderId") ?: -1L
             var reminder by remember { mutableStateOf<Reminder?>(null) }
 
@@ -397,7 +435,12 @@ fun MainNavigation(
         composable(
             route = "reuse/{reminderId}",
             arguments = listOf(navArgument("reminderId") { type = NavType.LongType })
-        ) { backStackEntry ->
+        ,
+        enterTransition = { slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutHorizontally(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+    ) { backStackEntry ->
             val reminderId = backStackEntry.arguments?.getLong("reminderId") ?: -1L
             var reminder by remember { mutableStateOf<Reminder?>(null) }
 
@@ -422,7 +465,12 @@ fun MainNavigation(
                 )
             }
         }
-        composable("stats") {
+        composable("stats",
+        enterTransition = { slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutHorizontally(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+    ) {
             val activeReminders by viewModel.allActiveReminders.collectAsState(initial = emptyList())
             val missedReminders by viewModel.completedReminders.collectAsState(initial = emptyList())
             val doneReminders by viewModel.deletedReminders.collectAsState(initial = emptyList())
@@ -434,7 +482,12 @@ fun MainNavigation(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
-        composable("permissions") {
+        composable("permissions",
+        enterTransition = { slideInVertically(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutVertically(animationSpec = tween(280)) { it } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInVertically(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutVertically(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+    ) {
             PermissionOnboardingScreen(
                 onComplete = {
                     prefsManager.hasSkippedPermissions = false
@@ -443,7 +496,12 @@ fun MainNavigation(
                 onSkip = { navController.popBackStack() }
             )
         }
-        composable("settings") {
+        composable("settings",
+        enterTransition = { slideInVertically(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutVertically(animationSpec = tween(280)) { it } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInVertically(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutVertically(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+    ) {
             SettingsScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onThemeChanged = onThemeChanged,
@@ -452,21 +510,36 @@ fun MainNavigation(
                 onNavigateToPermissions = { navController.navigate("permissions") }
             )
         }
-        composable("manageCategories") {
+        composable("manageCategories",
+        enterTransition = { slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutHorizontally(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+    ) {
             ManageCategoriesScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 // Manage Templates
-        composable("manageTemplates") {
+        composable("manageTemplates",
+        enterTransition = { slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutHorizontally(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+    ) {
             ManageTemplatesScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 // Select Template (Use Template)
-        composable("selectTemplate") {
+        composable("selectTemplate",
+        enterTransition = { slideInVertically(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutVertically(animationSpec = tween(280)) { it } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInVertically(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutVertically(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+    ) {
             SelectTemplateScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
@@ -480,7 +553,12 @@ fun MainNavigation(
         composable(
             route = "alarm/{reminderId}",
             arguments = listOf(navArgument("reminderId") { type = NavType.LongType })
-        ) { backStackEntry ->
+        ,
+        enterTransition = { fadeIn(tween(280)) },
+        exitTransition = { fadeOut(tween(280)) },
+        popEnterTransition = { fadeIn(tween(280)) },
+        popExitTransition = { fadeOut(tween(280)) }
+    ) { backStackEntry ->
             val context = LocalContext.current
             val reminderId = backStackEntry.arguments?.getLong("reminderId") ?: -1L
             var reminder by remember { mutableStateOf<Reminder?>(null) }
@@ -1027,7 +1105,7 @@ fun CompletedReminderCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                      .padding(16.dp)
             ) {
                 // Header: Checkmark + Category Emoji + Type + Recurrence Badge
                 Row(
@@ -1212,6 +1290,10 @@ fun HomeScreen(
     var selectedTab by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
 
+    // Search + category filter state (Active tab)
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
+
     // Celebration bubble state
     var celebrationMessage by remember { mutableStateOf<String?>(null) }
     var showCelebration by remember { mutableStateOf(false) }
@@ -1284,222 +1366,222 @@ fun HomeScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(            topBar = {
-            Column {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Text(
-                            "My Reminders",
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
+                Column {
+                    CenterAlignedTopAppBar(
+                        title = {
+                            Text(
+                                "My Reminders",
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
                             )
-                        )
-                    },
-                    actions = {
-                        // User Profile Menu
-                        val currentUser = FirebaseAuth.getInstance().currentUser
-                        var showUserMenu by remember { mutableStateOf(false) }
+                        },
+                        actions = {
+                            // User Profile Menu
+                            val currentUser = FirebaseAuth.getInstance().currentUser
+                            var showUserMenu by remember { mutableStateOf(false) }
 
-                        Box {
-                            if (currentUser != null) {
-                                // Signed In - Show Avatar
-                                IconButton(onClick = { showUserMenu = true }) {
-                                    AsyncImage(
-                                        model = currentUser.photoUrl,
-                                        contentDescription = "Profile",
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(CircleShape)
-                                            .border(
-                                                1.dp,
-                                                MaterialTheme.colorScheme.primary,
-                                                CircleShape
-                                            ),
-                                        contentScale = ContentScale.Crop,
-                                        error = painterResource(android.R.drawable.ic_menu_myplaces)
-                                    )
-                                }
-
-                                DropdownMenu(
-                                    expanded = showUserMenu,
-                                    onDismissRequest = { showUserMenu = false }
-                                ) {
-                                    // User Info
-                                    Column(
-                                        modifier = Modifier.padding(16.dp)
-                                    ) {
-                                        Text(
-                                            currentUser.displayName ?: "User",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            currentUser.email ?: "",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            "✓ Signed in with Google",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary
+                            Box {
+                                if (currentUser != null) {
+                                    // Signed In - Show Avatar
+                                    IconButton(onClick = { showUserMenu = true }) {
+                                        AsyncImage(
+                                            model = currentUser.photoUrl,
+                                            contentDescription = "Profile",
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clip(CircleShape)
+                                                .border(
+                                                    1.dp,
+                                                    MaterialTheme.colorScheme.primary,
+                                                    CircleShape
+                                                ),
+                                            contentScale = ContentScale.Crop,
+                                            error = painterResource(android.R.drawable.ic_menu_myplaces)
                                         )
                                     }
 
-                                    HorizontalDivider()
-
-                                    // Sign Out
-                                    DropdownMenuItem(
-                                        text = { Text("Sign out") },
-                                        onClick = {
-                                            showUserMenu = false
-                                            authViewModel.signOut()
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.ExitToApp,
-                                                contentDescription = null
+                                    DropdownMenu(
+                                        expanded = showUserMenu,
+                                        onDismissRequest = { showUserMenu = false }
+                                    ) {
+                                        // User Info
+                                        Column(
+                                            modifier = Modifier.padding(16.dp)
+                                        ) {
+                                            Text(
+                                                currentUser.displayName ?: "User",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                currentUser.email ?: "",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                "✓ Signed in with Google",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.primary
                                             )
                                         }
+
+                                        HorizontalDivider()
+
+                                        // Sign Out
+                                        DropdownMenuItem(
+                                            text = { Text("Sign out") },
+                                            onClick = {
+                                                showUserMenu = false
+                                                authViewModel.signOut()
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.ExitToApp,
+                                                    contentDescription = null
+                                                )
+                                            }
+                                        )
+                                    }
+                                } else {
+                                    // Not Signed In - Show Sign In Button
+                                    TextButton(onClick = {
+                                        authViewModel.signOut()
+                                    }) {
+                                        Text("Sign In", color = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            }
+
+                            // Settings Icon (direct access)
+                            IconButton(onClick = onNavigateToSettings) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Settings"
+                                )
+                            }
+
+                            // Stats Trophy Icon
+                            IconButton(onClick = onNavigateToStats) {
+                                Icon(
+                                    imageVector = Icons.Default.EmojiEvents,
+                                    contentDescription = "Stats",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            // Clear All button (only on Completed tab)
+                            if (selectedTab == 2 && completedReminders.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    scope.launch {
+                                        viewModel.clearAllCompleted()
+                                    }
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Default.DeleteSweep,
+                                        contentDescription = "Clear All Completed",
+                                        tint = MaterialTheme.colorScheme.error
                                     )
                                 }
-                            } else {
-                                // Not Signed In - Show Sign In Button
-                                TextButton(onClick = {
-                                    authViewModel.signOut()
-                                }) {
-                                    Text("Sign In", color = MaterialTheme.colorScheme.primary)
-                                }
                             }
-                        }
+                        },
+                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            titleContentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        modifier = Modifier.shadow(
+                            elevation = 2.dp,
+                            spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                        )
+                    )
 
-                        // Settings Icon (direct access)
-                        IconButton(onClick = onNavigateToSettings) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings"
-                            )
-                        }
-
-                        // Stats Trophy Icon
-                        IconButton(onClick = onNavigateToStats) {
-                            Icon(
-                                imageVector = Icons.Default.EmojiEvents,
-                                contentDescription = "Stats",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        // Clear All button (only on Completed tab)
-                        if (selectedTab == 2 && completedReminders.isNotEmpty()) {
-                            IconButton(onClick = {
-                                scope.launch {
-                                    viewModel.clearAllCompleted()
-                                }
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.DeleteSweep,
-                                    contentDescription = "Clear All Completed",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    TabRow(
+                        selectedTabIndex = selectedTab,
                         containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    modifier = Modifier.shadow(
-                        elevation = 2.dp,
-                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                    )
-                )
+                        contentColor = MaterialTheme.colorScheme.primary,
+                    ) {
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        "Create",
+                                        fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        )
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        "Active",
+                                        fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        "(${activeReminders.size})",
+                                        fontSize = 10.sp,
+                                        color = if (selectedTab == 1)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        )
+                        Tab(
+                            selected = selectedTab == 2,
+                            onClick = { selectedTab = 2 },
+                            text = {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        "Missed",
+                                        fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        "(${completedReminders.size})",
+                                        fontSize = 10.sp,
+                                        color = if (selectedTab == 2)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        )
+                        Tab(
+                            selected = selectedTab == 3,
+                            onClick = { selectedTab = 3 },
+                            text = {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        "Done",
+                                        fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        "(${deletedReminders.size})",
+                                        fontSize = 10.sp,
+                                        color = if (selectedTab == 3)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        )
 
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.primary,
-                ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        text = {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    "Create",
-                                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        text = {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    "Active",
-                                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    "(${activeReminders.size})",
-                                    fontSize = 10.sp,
-                                    color = if (selectedTab == 1)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        text = {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    "Missed",
-                                    fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    "(${completedReminders.size})",
-                                    fontSize = 10.sp,
-                                    color = if (selectedTab == 2)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 3,
-                        onClick = { selectedTab = 3 },
-                        text = {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    "Done",
-                                    fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    "(${deletedReminders.size})",
-                                    fontSize = 10.sp,
-                                    color = if (selectedTab == 3)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    )
-
+                    }
                 }
-            }
-        },
+            },
             containerColor = MaterialTheme.colorScheme.background
         ) { paddingValues ->
             Column(
@@ -1535,15 +1617,138 @@ fun HomeScreen(
                         }
 
                         1 -> {
-                            // Active Tab
-                            if (activeReminders.isEmpty()) {
-                                EmptyState(isCompleted = false)
-                            } else {
-                                ActiveReminderList(
-                                    reminders = activeReminders,
-                                    onDeleteReminder = { viewModel.deleteReminder(it) },
-                                    onEditReminder = { onNavigateToEdit(it.id) }
+                            // Active Tab — with search + category filter
+                            val filteredReminders = remember(activeReminders, searchQuery, selectedCategory) {
+                                activeReminders
+                                    .let { list ->
+                                        if (selectedCategory == null) list
+                                        else list.filter { it.mainCategory == selectedCategory }
+                                    }
+                                    .let { list ->
+                                        if (searchQuery.isBlank()) list
+                                        else list.filter {
+                                            it.title.contains(searchQuery, ignoreCase = true) ||
+                                            (it.notes?.contains(searchQuery, ignoreCase = true) == true)
+                                        }
+                                    }
+                            }
+                            val availableCategories = remember(activeReminders) {
+                                activeReminders.map { it.mainCategory }.distinct().sorted()
+                            }
+
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                // Search bar
+                                OutlinedTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    placeholder = { Text("Search reminders...") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = "Search"
+                                        )
+                                    },
+                                    trailingIcon = {
+                                        if (searchQuery.isNotEmpty()) {
+                                            IconButton(onClick = { searchQuery = "" }) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Clear search"
+                                                )
+                                            }
+                                        }
+                                    },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp)
                                 )
+
+                                // Category filter chips — only shown when >1 category exists
+                                if (availableCategories.size > 1) {
+                                    val categoryEmojis = mapOf(
+                                        "WORK" to "💼",
+                                        "PERSONAL" to "🏠",
+                                        "HEALTH" to "❤️",
+                                        "FINANCE" to "💰",
+                                        "GENERAL" to "📋"
+                                    )
+                                    LazyRow(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 4.dp)
+                                    ) {
+                                        // "All" chip
+                                        item {
+                                            FilterChip(
+                                                selected = selectedCategory == null,
+                                                onClick = { selectedCategory = null },
+                                                label = { Text("All") }
+                                            )
+                                        }
+                                        items(availableCategories) { category ->
+                                            val emoji = categoryEmojis[category] ?: "📌"
+                                            val label = category.lowercase()
+                                                .replaceFirstChar { it.uppercase() }
+                                            FilterChip(
+                                                selected = selectedCategory == category,
+                                                onClick = {
+                                                    selectedCategory =
+                                                        if (selectedCategory == category) null
+                                                        else category
+                                                },
+                                                label = { Text("$emoji $label") }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Results
+                                when {
+                                    activeReminders.isEmpty() -> EmptyState(isCompleted = false)
+                                    filteredReminders.isEmpty() -> {
+                                        // No matches — show friendly message
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(32.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Text(
+                                                text = "🔍 No matches found",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "Try a different search or category",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                textAlign = TextAlign.Center
+                                            )
+                                            if (searchQuery.isNotEmpty() || selectedCategory != null) {
+                                                Spacer(modifier = Modifier.height(16.dp))
+                                                TextButton(onClick = {
+                                                    searchQuery = ""
+                                                    selectedCategory = null
+                                                }) {
+                                                    Text("Clear filters")
+                                                }
+                                            }
+                                        }
+                                    }
+                                    else -> {
+                                        ActiveReminderList(
+                                            reminders = filteredReminders,
+                                            onDeleteReminder = { viewModel.deleteReminder(it) },
+                                            onEditReminder = { onNavigateToEdit(it.id) }
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -1611,4 +1816,16 @@ fun HomeScreen(
             }
         }
     }
-}
+    }
+
+
+
+
+
+
+
+
+
+
+
+
