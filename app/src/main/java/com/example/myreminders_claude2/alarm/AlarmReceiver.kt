@@ -13,13 +13,16 @@ class AlarmReceiver : BroadcastReceiver() {
         val timeFormat = SimpleDateFormat("MMM dd, yyyy hh:mm:ss a", Locale.getDefault())
         Log.d("AlarmReceiver", "=== ALARM FIRED ===")
         Log.d("AlarmReceiver", "Actual fire time: ${timeFormat.format(Date())}")
-
-        // ✅ FIX: Removed ACTION_BOOT_COMPLETED handling from here.
-        // BootReceiver is the single dedicated handler for boot rescheduling.
-        // Having both AlarmReceiver AND BootReceiver handle BOOT_COMPLETED
-        // caused every alarm to be scheduled twice after a phone restart.
+        Log.d("AlarmReceiver", "Action: ${intent.action}")
 
         val reminderId = intent.getLongExtra("REMINDER_ID", -1)
+
+        // Guard against invalid reminder IDs
+        if (reminderId <= 0) {
+            Log.w("AlarmReceiver", "Invalid reminder ID: $reminderId — ignoring")
+            return
+        }
+
         val title = intent.getStringExtra("REMINDER_TITLE") ?: "Reminder"
         val notes = intent.getStringExtra("REMINDER_NOTES") ?: ""
         val voiceEnabled = intent.getBooleanExtra("VOICE_ENABLED", true)
