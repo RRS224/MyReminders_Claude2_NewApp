@@ -45,8 +45,14 @@ class SyncManager(
             syncLocalToCloud()
             Log.d(TAG, "Local upload complete - now starting listeners")
             setupRealtimeListeners(uid)
-            // Explicit one-time fetch to handle fresh installs and auth timing issues
-            fetchAllFromCloud(uid)
+            // Only fetch from cloud on genuine fresh install (empty local DB)
+            val localCount = reminderDao.getAllActiveRemindersSync().size
+            if (localCount == 0) {
+                Log.d(TAG, "Empty local DB - fetching from cloud for fresh install restore")
+                fetchAllFromCloud(uid)
+            } else {
+                Log.d(TAG, "Local DB has $localCount reminders - skipping cloud fetch")
+            }
         }
     }
 
@@ -160,12 +166,11 @@ class SyncManager(
                                 handleReminderChange(firestoreReminder)
                             }
                             DocumentChange.Type.REMOVED -> {
-                                // Delete from Room when deleted from cloud
-                                val reminderId = change.document.id.toLongOrNull()
-                                if (reminderId != null) {
-                                    reminderDao.permanentlyDeleteReminder(reminderId)
-                                    Log.d(TAG, "Deleted reminder from Room (cloud removal): $reminderId")
-                                }
+                                // Do NOT delete from Room on cloud removal events.
+                                // Firestore fires REMOVED when permissions are denied or
+                                // the listener loses access — deleting locally would wipe
+                                // the user's data. Local deletion is always user-initiated.
+                                Log.d(TAG, "Ignoring cloud REMOVED event for reminder: ${change.document.id}")
                             }
                         }
                     }

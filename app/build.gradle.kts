@@ -15,8 +15,8 @@ android {
         applicationId = "com.redboxstudios.myreminders"
         minSdk = 24
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.9.6"
+        versionCode = 18
+        versionName = "1.9.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
