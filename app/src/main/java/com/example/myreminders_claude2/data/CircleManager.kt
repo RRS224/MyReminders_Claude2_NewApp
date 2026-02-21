@@ -150,7 +150,12 @@ object CircleManager {
         sharingCode: String
     ): Boolean {
         val myUid = auth.currentUser?.uid ?: return false
+        val myDisplayName = auth.currentUser?.displayName
+            ?: auth.currentUser?.email?.substringBefore("@")
+            ?: "Unknown"
+        val myCode = getOrCreateSharingCode() ?: ""
         return try {
+            // Add them to my circle
             firestore
                 .collection("circles")
                 .document(myUid)
@@ -162,6 +167,20 @@ object CircleManager {
                     "sharingCode" to sharingCode,
                     "addedAt" to com.google.firebase.Timestamp.now()
                 )).await()
+
+            // Add me to their circle (two-way)
+            firestore
+                .collection("circles")
+                .document(connectionUid)
+                .collection("connections")
+                .document(myUid)
+                .set(mapOf(
+                    "uid" to myUid,
+                    "displayName" to myDisplayName,
+                    "sharingCode" to myCode,
+                    "addedAt" to com.google.firebase.Timestamp.now()
+                )).await()
+
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error adding connection", e)

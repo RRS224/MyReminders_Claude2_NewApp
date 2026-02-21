@@ -65,24 +65,24 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
     // ===== REMINDER FLOWS =====
 
     val allActiveReminders = reminderRepository.allActiveReminders
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val completedReminders = reminderRepository.completedReminders
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val deletedReminders = reminderRepository.deletedReminders
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // ===== CATEGORY FLOWS =====
 
     val allCategories = reminderRepository.allCategories
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val mainCategories = reminderRepository.mainCategories
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val customCategories = reminderRepository.customCategories
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // ===== TEMPLATE FLOWS =====
 
