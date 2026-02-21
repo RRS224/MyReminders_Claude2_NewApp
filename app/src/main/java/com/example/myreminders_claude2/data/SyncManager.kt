@@ -41,11 +41,28 @@ class SyncManager(
         Log.d(TAG, "Starting sync for user: $uid")
 
         scope.launch {
-            // ✅ FIXED: Upload local data FIRST, then start listeners
-            // This prevents old Firebase data from overwriting newer local data!
+            // Upload local data first, then start listeners
             syncLocalToCloud()
             Log.d(TAG, "Local upload complete - now starting listeners")
             setupRealtimeListeners(uid)
+            // Explicit one-time fetch to handle fresh installs and auth timing issues
+            fetchAllFromCloud(uid)
+        }
+    }
+
+    private suspend fun fetchAllFromCloud(uid: String) {
+        try {
+            Log.d(TAG, "Fetching all reminders from cloud for fresh install/restore")
+            val snapshot = firestore.collection(COLLECTION_REMINDERS)
+                .whereEqualTo("userId", uid)
+                .get().await()
+            snapshot.documents.forEach { doc ->
+                val firestoreReminder = doc.toObject(FirestoreReminder::class.java) ?: return@forEach
+                handleReminderChange(firestoreReminder)
+            }
+            Log.d(TAG, "Cloud fetch complete: ${snapshot.size()} reminders")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching from cloud", e)
         }
     }
 
@@ -205,15 +222,10 @@ class SyncManager(
         val existing = reminderDao.getReminderByIdSync(localReminder.id)
 
         if (existing == null) {
-            // ✅ If reminder is deleted in Firebase and doesn't exist locally,
-            // delete from Firebase instead of re-adding to Room!
-            if (localReminder.isDeleted) {
-                Log.d(TAG, "Reminder is deleted in Firebase and not in Room - cleaning up Firebase: ${localReminder.title}")
-                deleteReminderFromCloud(localReminder.id)
-                return
-            }
+            // Restore to Room regardless of isDeleted/isCompleted status
+            // This ensures Done and Missed reminders are restored on fresh install
             reminderDao.insertReminder(localReminder)
-            Log.d(TAG, "Downloaded new reminder: ${localReminder.title}")
+            Log.d(TAG, "Downloaded reminder: ${localReminder.title} (isDeleted=${localReminder.isDeleted}, isCompleted=${localReminder.isCompleted})")
         } else {
             if (localReminder.updatedAt > existing.updatedAt) {
                 reminderDao.updateReminder(localReminder)
