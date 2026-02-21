@@ -9,7 +9,9 @@ import com.example.myreminders_claude2.data.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.*
 
@@ -62,15 +64,25 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
 
     // ===== REMINDER FLOWS =====
 
-    val allActiveReminders: Flow<List<Reminder>> = reminderRepository.allActiveReminders
-    val completedReminders: Flow<List<Reminder>> = reminderRepository.completedReminders
-    val deletedReminders: Flow<List<Reminder>> = reminderRepository.deletedReminders
+    val allActiveReminders = reminderRepository.allActiveReminders
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val completedReminders = reminderRepository.completedReminders
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val deletedReminders = reminderRepository.deletedReminders
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // ===== CATEGORY FLOWS =====
 
-    val allCategories: Flow<List<Category>> = reminderRepository.allCategories
-    val mainCategories: Flow<List<Category>> = reminderRepository.mainCategories
-    val customCategories: Flow<List<Category>> = reminderRepository.customCategories
+    val allCategories = reminderRepository.allCategories
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val mainCategories = reminderRepository.mainCategories
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val customCategories = reminderRepository.customCategories
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // ===== TEMPLATE FLOWS =====
 

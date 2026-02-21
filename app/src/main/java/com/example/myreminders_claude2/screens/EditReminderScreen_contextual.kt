@@ -76,8 +76,7 @@ fun EditReminderScreen(
     var recurrenceInterval by remember { mutableStateOf(initialRecurrenceInterval) }
     var showRecurrenceMenu by remember { mutableStateOf(false) }
 
-    // ✅ FIX: remember{} so the formatter is created once, not on every recomposition
-    val dateFormat = remember { SimpleDateFormat("EEE, MMM dd yyyy 'at' hh:mm a", Locale.getDefault()) }
+    val dateFormat = SimpleDateFormat("EEE, MMM dd yyyy 'at' hh:mm a", Locale.getDefault())
 
     // Get type options based on main category
     val typeOptions = when (mainCategory) {
@@ -105,11 +104,13 @@ fun EditReminderScreen(
                             calendar.set(year, month, day, hour, minute, 0)
                             val newTime = calendar.timeInMillis
                             if (newTime < System.currentTimeMillis() - (60 * 1000)) {
-                                android.widget.Toast.makeText(
-                                    context,
-                                    "⚠️ Cannot select a time in the past",
-                                    android.widget.Toast.LENGTH_LONG
-                                ).show()
+                            val nowCal2 = java.util.Calendar.getInstance()
+                            val selCal2 = java.util.Calendar.getInstance().apply { timeInMillis = newTime }
+                            val dateWrong2 = selCal2.get(java.util.Calendar.YEAR) < nowCal2.get(java.util.Calendar.YEAR) ||
+                                (selCal2.get(java.util.Calendar.YEAR) == nowCal2.get(java.util.Calendar.YEAR) &&
+                                 selCal2.get(java.util.Calendar.DAY_OF_YEAR) < nowCal2.get(java.util.Calendar.DAY_OF_YEAR))
+                            val pastMsg2 = if (dateWrong2) "⚠️ Date is in the past" else "⚠️ Time is in the past"
+                            android.widget.Toast.makeText(context, pastMsg2, android.widget.Toast.LENGTH_LONG).show()
                             } else {
                                 selectedDateTime = newTime
                             }
@@ -336,11 +337,13 @@ fun EditReminderScreen(
                                     calendar.set(year, month, day, hour, minute, 0)
                                     val newTime = calendar.timeInMillis
                                     if (newTime < System.currentTimeMillis() - (60 * 1000)) {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            "⚠️ Cannot select a time in the past",
-                                            android.widget.Toast.LENGTH_LONG
-                                        ).show()
+                            val nowCal2 = java.util.Calendar.getInstance()
+                            val selCal2 = java.util.Calendar.getInstance().apply { timeInMillis = newTime }
+                            val dateWrong2 = selCal2.get(java.util.Calendar.YEAR) < nowCal2.get(java.util.Calendar.YEAR) ||
+                                (selCal2.get(java.util.Calendar.YEAR) == nowCal2.get(java.util.Calendar.YEAR) &&
+                                 selCal2.get(java.util.Calendar.DAY_OF_YEAR) < nowCal2.get(java.util.Calendar.DAY_OF_YEAR))
+                            val pastMsg2 = if (dateWrong2) "⚠️ Date is in the past" else "⚠️ Time is in the past"
+                            android.widget.Toast.makeText(context, pastMsg2, android.widget.Toast.LENGTH_LONG).show()
                                     } else {
                                         selectedDateTime = newTime
                                     }
@@ -383,8 +386,14 @@ fun EditReminderScreen(
                         )
                         if (selectedDateTime < System.currentTimeMillis() - (60 * 1000)) {
                             Spacer(modifier = Modifier.height(4.dp))
+                            val nowCal3 = java.util.Calendar.getInstance()
+                            val selCal3 = java.util.Calendar.getInstance().apply { timeInMillis = selectedDateTime }
+                            val dateWrong3 = selCal3.get(java.util.Calendar.YEAR) < nowCal3.get(java.util.Calendar.YEAR) ||
+                                (selCal3.get(java.util.Calendar.YEAR) == nowCal3.get(java.util.Calendar.YEAR) &&
+                                 selCal3.get(java.util.Calendar.DAY_OF_YEAR) < nowCal3.get(java.util.Calendar.DAY_OF_YEAR))
+                            val pastMsg3 = if (dateWrong3) "⚠️ Date is in the past" else "⚠️ Time is in the past"
                             Text(
-                                "⚠️ Date is in the past",
+                                pastMsg3,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error,
                                 fontWeight = FontWeight.Bold
