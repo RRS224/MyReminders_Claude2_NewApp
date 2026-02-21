@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
+import android.os.PowerManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -53,8 +54,36 @@ fun PermissionOnboardingScreen(
         )
     }
 
+    // Battery optimization state
+    val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
+    var isBatteryOptimized by remember {
+        mutableStateOf(!powerManager.isIgnoringBatteryOptimizations(context.packageName))
+    }
+
+    // Detect OEM for manufacturer-specific instructions
+    val manufacturer = remember { android.os.Build.MANUFACTURER.lowercase() }
+    val batteryInstructions = remember(manufacturer) {
+        when {
+            manufacturer.contains("samsung") ->
+                "Settings → Apps → MyReminders → Battery → set to Unrestricted. Also check Settings → Battery → Background usage limits → Sleeping apps and remove MyReminders if listed."
+            manufacturer.contains("xiaomi") || manufacturer.contains("redmi") ->
+                "Settings → Apps → MyReminders → Battery Saver → set to No restrictions"
+            manufacturer.contains("huawei") || manufacturer.contains("honor") ->
+                "Settings → Apps → MyReminders → Battery → disable Power-intensive prompt"
+            manufacturer.contains("oneplus") ->
+                "Settings → Battery → Battery Optimization → MyReminders → Don't optimize"
+            manufacturer.contains("oppo") || manufacturer.contains("realme") ->
+                "Settings → Battery → Battery Optimization → MyReminders → Don't optimize"
+            manufacturer.contains("vivo") ->
+                "Settings → Battery → High Background Power Consumption → add MyReminders"
+            else ->
+                "Settings → Battery → Battery Optimization → MyReminders → Don't optimize"
+        }
+    }
+
     // Recheck alarm permission when screen resumes
     LaunchedEffect(Unit) {
+        isBatteryOptimized = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
         canScheduleExactAlarms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             alarmManager.canScheduleExactAlarms()
         } else {
@@ -70,7 +99,7 @@ fun PermissionOnboardingScreen(
         val notifGranted = notificationPermission?.status?.isGranted ?: true
         val micGranted = microphonePermission.status.isGranted
 
-        notifGranted && canScheduleExactAlarms && micGranted
+        notifGranted && canScheduleExactAlarms && micGranted && !isBatteryOptimized
     }
 
     fun openExactAlarmSettings() {
@@ -175,8 +204,28 @@ fun PermissionOnboardingScreen(
                     onRequestPermission = { microphonePermission.launchPermissionRequest() }
                 )
 
-                // OEM Battery Optimization Section
-                OEMBatteryOptimizationSection()
+                // Battery Optimization Card
+                PermissionCard(
+                    icon = Icons.Default.BatteryFull,
+                    title = "Battery Optimization",
+                    description = if (isBatteryOptimized)
+                        "Required for reliable alarms on ${android.os.Build.MANUFACTURER}. Tap to fix:\n$batteryInstructions"
+                    else
+                        "Alarms will fire reliably in the background",
+                    isGranted = !isBatteryOptimized,
+                    onRequestPermission = {
+                        // Open battery optimization settings directly
+                        try {
+                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                            context.startActivity(intent)
+                        }
+                    }
+                )
 
                 Spacer(modifier = Modifier.weight(1f))
 
@@ -213,6 +262,17 @@ fun PermissionOnboardingScreen(
                                     }
                                     !microphonePermission.status.isGranted -> {
                                         microphonePermission.launchPermissionRequest()
+                                    }
+                                    isBatteryOptimized -> {
+                                        try {
+                                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                                data = Uri.parse("package:${context.packageName}")
+                                            }
+                                            context.startActivity(intent)
+                                        }
                                     }
                                 }
                             },
@@ -319,114 +379,6 @@ fun PermissionCard(
                         contentDescription = "Grant",
                         tint = MaterialTheme.colorScheme.primary
                     )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun OEMBatteryOptimizationSection() {
-    val manufacturer = com.example.myreminders_claude2.utils.OEMHelper.getManufacturerName()
-    val steps = com.example.myreminders_claude2.utils.OEMHelper.getBatteryOptimizationSteps()
-    var isExpanded by remember { mutableStateOf(false) }
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        HorizontalDivider()
-
-        Text(
-            text = "$manufacturer Device Setup",
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.Bold
-            ),
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Text(
-            text = "For reliable alarms, disable battery optimization:",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
-            ),
-            onClick = { isExpanded = !isExpanded }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.BatteryFull,
-                            contentDescription = null,
-                            modifier = Modifier.size(32.dp),
-                            tint = MaterialTheme.colorScheme.secondary
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            "Battery Optimization Steps",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        )
-                    }
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = if (isExpanded) "Collapse" else "Expand",
-                        tint = MaterialTheme.colorScheme.secondary
-                    )
-                }
-
-                if (isExpanded) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider()
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    steps.forEachIndexed { index, step ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                color = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "${index + 1}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSecondary
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = step,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        if (index < steps.size - 1) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                        }
-                    }
                 }
             }
         }

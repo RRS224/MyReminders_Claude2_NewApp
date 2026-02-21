@@ -26,6 +26,18 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Notifications
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.lazy.items
+import com.example.myreminders_claude2.data.CircleManager
+import com.example.myreminders_claude2.data.CircleGroup
+import com.example.myreminders_claude2.data.CircleGroupManager
+import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -47,6 +59,25 @@ fun AddReminderScreen(
     val categoryManager = remember { CategoryManager(context) }
     val allCategories = categoryManager.getAllCategories()
     val scope = rememberCoroutineScope()
+
+    // My Circle send state
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    var connections by remember { mutableStateOf<List<Map<String, String>>>(emptyList()) }
+    var showSendSheet by remember { mutableStateOf(false) }
+    var sendToSelf by remember { mutableStateOf(true) }
+    var selectedConnections by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    // Local groups
+    var groups by remember { mutableStateOf(CircleGroupManager.getGroups(context)) }
+
+    // Load connections if signed in
+    LaunchedEffect(currentUser?.uid) {
+        if (currentUser != null) {
+            connections = CircleManager.getConnections()
+            groups = CircleGroupManager.getGroups(context)
+        }
+    }
+
 
     var reminderText by remember { mutableStateOf(prefilledTitle) }
     var notes by remember { mutableStateOf(prefilledNotes) }
@@ -542,24 +573,29 @@ fun AddReminderScreen(
             Button(
                 onClick = {
                     if (reminderText.isNotBlank()) {
-                        val finalType = when (reminderType) {
-                            "Custom..." -> TextFormatter.smartCapitalize(customType.ifBlank { "General" })
-                            else -> reminderType
+                        if (currentUser != null && connections.isNotEmpty()) {
+                            // Show send sheet — let user choose who to send to
+                            showSendSheet = true
+                        } else {
+                            // No circle members or not signed in — save immediately as before
+                            val finalType = when (reminderType) {
+                                "Custom..." -> TextFormatter.smartCapitalize(customType.ifBlank { "General" })
+                                else -> reminderType
+                            }
+                            viewModel.addReminder(
+                                title = TextFormatter.smartCapitalize(reminderText),
+                                notes = TextFormatter.smartCapitalize(notes),
+                                dateTime = selectedDateTime,
+                                recurrenceType = recurrenceType,
+                                recurrenceInterval = recurrenceInterval,
+                                recurrenceDayOfWeek = null,
+                                recurrenceDayOfMonth = null,
+                                mainCategory = mainCategory,
+                                subCategory = finalType,
+                                isVoiceEnabled = isVoiceEnabled
+                            )
+                            onNavigateBack()
                         }
-
-                        viewModel.addReminder(
-                            title = TextFormatter.smartCapitalize(reminderText),
-                            notes = TextFormatter.smartCapitalize(notes),
-                            dateTime = selectedDateTime,
-                            recurrenceType = recurrenceType,
-                            recurrenceInterval = recurrenceInterval,
-                            recurrenceDayOfWeek = null,
-                            recurrenceDayOfMonth = null,
-                            mainCategory = mainCategory,
-                            subCategory = finalType,
-                            isVoiceEnabled = isVoiceEnabled
-                        )
-                        onNavigateBack()
                     }
                 },
                 modifier = Modifier
@@ -585,6 +621,290 @@ fun AddReminderScreen(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+            }
+        }
+    }
+
+    // ── Send to Circle bottom sheet ───────────────────────────────────────────
+    if (showSendSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+        ModalBottomSheet(
+            onDismissRequest = { showSendSheet = false },
+            sheetState = sheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    text = "Save Reminder",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Who should receive this reminder?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Just for me toggle
+                Card(
+                    onClick = { sendToSelf = !sendToSelf },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (sendToSelf)
+                            MaterialTheme.colorScheme.primaryContainer
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            tint = if (sendToSelf) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Save for myself too",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Keep a copy in my own reminders",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (sendToSelf) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ── Groups ───────────────────────────────────────────
+                if (groups.isNotEmpty()) {
+                    Text(
+                        text = "Groups",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    groups.forEach { group ->
+                        val groupMemberUids = group.memberUids.toSet()
+                        val allSelected = groupMemberUids.isNotEmpty() &&
+                                groupMemberUids.all { it in selectedConnections }
+                        Card(
+                            onClick = {
+                                // Tapping a group selects all its members and unticks "just for me"
+                                selectedConnections = if (allSelected)
+                                    selectedConnections - groupMemberUids
+                                else
+                                    selectedConnections + groupMemberUids
+                                if (!allSelected) sendToSelf = false
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (allSelected)
+                                    MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.secondaryContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.People, null,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        group.name,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    val memberNames = group.memberUids.mapNotNull { uid ->
+                                        connections.find { it["uid"] == uid }?.get("displayName")
+                                    }
+                                    Text(
+                                        if (memberNames.isEmpty()) "No members"
+                                        else memberNames.joinToString(", "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (allSelected) {
+                                    Icon(Icons.Default.Check, null,
+                                        tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+
+                // ── Individuals ───────────────────────────────────────────────
+                Text(
+                    text = "Individuals",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                connections.forEach { connection ->
+                    val uid = connection["uid"] ?: return@forEach
+                    val name = connection["displayName"] ?: "Unknown"
+                    val isSelected = uid in selectedConnections
+                    val avatarColors = listOf(
+                        androidx.compose.ui.graphics.Color(0xFF1976D2),
+                        androidx.compose.ui.graphics.Color(0xFF388E3C),
+                        androidx.compose.ui.graphics.Color(0xFFF57C00),
+                        androidx.compose.ui.graphics.Color(0xFF7B1FA2),
+                        androidx.compose.ui.graphics.Color(0xFFC62828),
+                        androidx.compose.ui.graphics.Color(0xFF00838F)
+                    )
+                    val avatarColor = avatarColors[name.hashCode().and(0x7FFFFFFF) % avatarColors.size]
+                    Card(
+                        onClick = {
+                            selectedConnections = if (isSelected)
+                                selectedConnections - uid
+                            else {
+                                sendToSelf = false
+                                selectedConnections + uid
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected)
+                                MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(avatarColor),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    name.firstOrNull()?.uppercase() ?: "?",
+                                    color = androidx.compose.ui.graphics.Color.White,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                name,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isSelected) {
+                                Icon(Icons.Default.Check, null,
+                                    tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Confirm save button
+                Button(
+                    onClick = {
+                        showSendSheet = false
+                        val finalType = when (reminderType) {
+                            "Custom..." -> TextFormatter.smartCapitalize(customType.ifBlank { "General" })
+                            else -> reminderType
+                        }
+                        scope.launch {
+                            // Always save for self if sendToSelf is checked
+                            if (sendToSelf) {
+                                viewModel.addReminder(
+                                    title = TextFormatter.smartCapitalize(reminderText),
+                                    notes = TextFormatter.smartCapitalize(notes),
+                                    dateTime = selectedDateTime,
+                                    recurrenceType = recurrenceType,
+                                    recurrenceInterval = recurrenceInterval,
+                                    recurrenceDayOfWeek = null,
+                                    recurrenceDayOfMonth = null,
+                                    mainCategory = mainCategory,
+                                    subCategory = finalType,
+                                    isVoiceEnabled = isVoiceEnabled
+                                )
+                            }
+
+                            // TODO: send to selected circle members via Firestore + FCM
+                            // This will be implemented in the next session
+                            // selectedConnections.forEach { uid -> CircleManager.sendReminder(...) }
+
+                            onNavigateBack()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    enabled = sendToSelf || selectedConnections.isNotEmpty()
+                ) {
+                    val label = when {
+                        sendToSelf && selectedConnections.isNotEmpty() ->
+                            "Save & Send to ${selectedConnections.size} person${if (selectedConnections.size > 1) "s" else ""}"
+                        selectedConnections.isNotEmpty() ->
+                            "Send to ${selectedConnections.size} person${if (selectedConnections.size > 1) "s" else ""}"
+                        sendToSelf -> "Save for Myself"
+                        else -> "Save Reminder"
+                    }
+                    Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                TextButton(
+                    onClick = { showSendSheet = false },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel")
+                }
             }
         }
     }

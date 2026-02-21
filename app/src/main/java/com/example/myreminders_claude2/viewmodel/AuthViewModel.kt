@@ -114,4 +114,77 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getOneTapClient(): SignInClient = oneTapClient
+
+    // ── Email / Password ──────────────────────────────────────────────────────
+
+    fun createAccountWithEmail(email: String, password: String) {
+        viewModelScope.launch {
+            try {
+                _authState.value = _authState.value.copy(isLoading = true, error = null)
+                val result = auth.createUserWithEmailAndPassword(email, password).await()
+                val user = result.user
+                _authState.value = AuthState(
+                    isSignedIn = true,
+                    userId = user?.uid,
+                    email = user?.email,
+                    displayName = user?.displayName ?: email.substringBefore("@"),
+                    isLoading = false
+                )
+                onSignInSuccess?.invoke()
+            } catch (e: Exception) {
+                _authState.value = _authState.value.copy(
+                    isLoading = false,
+                    error = friendlyAuthError(e.message)
+                )
+            }
+        }
+    }
+
+    fun signInWithEmail(email: String, password: String) {
+        viewModelScope.launch {
+            try {
+                _authState.value = _authState.value.copy(isLoading = true, error = null)
+                val result = auth.signInWithEmailAndPassword(email, password).await()
+                val user = result.user
+                _authState.value = AuthState(
+                    isSignedIn = true,
+                    userId = user?.uid,
+                    email = user?.email,
+                    displayName = user?.displayName ?: user?.email?.substringBefore("@"),
+                    isLoading = false
+                )
+                onSignInSuccess?.invoke()
+            } catch (e: Exception) {
+                _authState.value = _authState.value.copy(
+                    isLoading = false,
+                    error = friendlyAuthError(e.message)
+                )
+            }
+        }
+    }
+
+    fun sendPasswordResetEmail(email: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                auth.sendPasswordResetEmail(email).await()
+                onResult(true, "Reset email sent — check your inbox")
+            } catch (e: Exception) {
+                onResult(false, friendlyAuthError(e.message))
+            }
+        }
+    }
+
+    private fun friendlyAuthError(message: String?): String {
+        return when {
+            message == null -> "Something went wrong — please try again"
+            message.contains("email address is already in use") -> "An account with this email already exists — try signing in instead"
+            message.contains("badly formatted") -> "Please enter a valid email address"
+            message.contains("password is invalid") || message.contains("wrong-password") -> "Incorrect password — please try again"
+            message.contains("no user record") || message.contains("user-not-found") -> "No account found with this email — try creating one"
+            message.contains("weak-password") || message.contains("at least 6") -> "Password must be at least 6 characters"
+            message.contains("network") -> "Network error — please check your connection"
+            message.contains("too-many-requests") -> "Too many attempts — please wait a moment and try again"
+            else -> "Sign in failed — please try again"
+        }
+    }
 }

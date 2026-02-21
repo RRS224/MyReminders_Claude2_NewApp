@@ -32,6 +32,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import com.example.myreminders_claude2.alarm.AlarmService
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -39,6 +41,8 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.filled.Notifications
@@ -62,6 +66,8 @@ import com.example.myreminders_claude2.data.Reminder
 import com.example.myreminders_claude2.screens.AddReminderScreen
 import com.example.myreminders_claude2.screens.CreateReminderTab
 import com.example.myreminders_claude2.screens.DeletedRemindersTab
+import com.example.myreminders_claude2.screens.MyCircleScreen
+import com.example.myreminders_claude2.data.CircleManager
 import com.example.myreminders_claude2.screens.StatsScreen
 import com.example.myreminders_claude2.screens.EditReminderScreen
 import com.example.myreminders_claude2.screens.ManageCategoriesScreen
@@ -217,6 +223,7 @@ fun MyRemindersApp(
                 authViewModel = authViewModel,
                 prefsManager = prefsManager,
                 initialReminderId = initialReminderId,
+                onNavigateToSignIn = { hasSkippedSignIn = false },
                 onThemeChanged = onThemeChanged
             )
         }
@@ -228,7 +235,8 @@ fun MainNavigation(
     authViewModel: AuthViewModel,
     prefsManager: PreferencesManager,
     initialReminderId: Long?,
-    onThemeChanged: () -> Unit
+    onThemeChanged: () -> Unit,
+    onNavigateToSignIn: () -> Unit
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
@@ -260,7 +268,9 @@ fun MainNavigation(
                 onNavigateToEdit = { id -> navController.navigate("edit/$id") },
                 onNavigateToReuse = { id -> navController.navigate("reuse/$id") },
                 onNavigateToTemplates = { navController.navigate("selectTemplate") },
-                onNavigateToStats = { navController.navigate("stats") }
+                onNavigateToStats = { navController.navigate("stats") },
+                onNavigateToMyCircle = { navController.navigate("myCircle") },
+                onNavigateToSignIn = onNavigateToSignIn
             )
         }
         composable("add",
@@ -550,6 +560,16 @@ fun MainNavigation(
                 }
             )
         }
+        composable("myCircle",
+        enterTransition = { slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(tween(280)) },
+        exitTransition = { slideOutHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeOut(tween(280)) },
+        popEnterTransition = { slideInHorizontally(animationSpec = tween(280)) { -it / 3 } + fadeIn(tween(280)) },
+        popExitTransition = { slideOutHorizontally(animationSpec = tween(280)) { it } + fadeOut(tween(280)) }
+        ) {
+            MyCircleScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
         composable(
             route = "alarm/{reminderId}",
             arguments = listOf(navArgument("reminderId") { type = NavType.LongType })
@@ -621,6 +641,107 @@ fun MainNavigation(
         }
     }
 }
+@Composable
+fun MyCircleRow(
+    onNavigateToMyCircle: () -> Unit,
+    onNavigateToSignIn: () -> Unit
+) {
+    val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+    val scope = rememberCoroutineScope()
+    var sharingCode by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(currentUser?.uid) {
+        if (currentUser != null) {
+            scope.launch {
+                sharingCode = CircleManager.getOrCreateSharingCode()
+            }
+        }
+    }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = androidx.compose.ui.Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            if (currentUser != null) {
+                // Signed in — show My Circle button
+                TextButton(
+                    onClick = onNavigateToMyCircle,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.People,
+                        contentDescription = null,
+                        modifier = androidx.compose.ui.Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = androidx.compose.ui.Modifier.width(6.dp))
+                    Text(
+                        "My Circle",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Spacer(modifier = androidx.compose.ui.Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        modifier = androidx.compose.ui.Modifier.size(14.dp)
+                    )
+                }
+
+                // Sharing code — tap to navigate to My Circle
+                if (sharingCode != null) {
+                    val formatted = sharingCode!!.let {
+                        if (it.length == 6) "${it.take(3)}-${it.takeLast(3)}" else it
+                    }
+                    TextButton(
+                        onClick = onNavigateToMyCircle,
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tag,
+                            contentDescription = null,
+                            modifier = androidx.compose.ui.Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = formatted,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                // Not signed in — more prominent prompt
+                TextButton(
+                    onClick = onNavigateToSignIn,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.People,
+                        contentDescription = null,
+                        modifier = androidx.compose.ui.Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = androidx.compose.ui.Modifier.width(6.dp))
+                    Text(
+                        "👥 My Circle — Sign in to get started",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun PermissionWarningBanner(
     onFixClick: () -> Unit
@@ -1277,7 +1398,9 @@ fun HomeScreen(
     onNavigateToEdit: (Long) -> Unit,
     onNavigateToReuse: (Long) -> Unit,
     onNavigateToTemplates: () -> Unit,
-    onNavigateToStats: () -> Unit
+    onNavigateToStats: () -> Unit,
+    onNavigateToMyCircle: () -> Unit,
+    onNavigateToSignIn: () -> Unit
 ) {
     val context = LocalContext.current
     val activeReminders by viewModel.allActiveReminders.collectAsState(initial = emptyList())
@@ -1495,6 +1618,12 @@ fun HomeScreen(
                             elevation = 2.dp,
                             spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                         )
+                    )
+
+                    // ── My Circle row ─────────────────────────────────────
+                    MyCircleRow(
+                        onNavigateToMyCircle = onNavigateToMyCircle,
+                        onNavigateToSignIn = onNavigateToSignIn
                     )
 
                     TabRow(
