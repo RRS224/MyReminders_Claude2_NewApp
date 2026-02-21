@@ -216,6 +216,12 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         return reminderRepository.getReminderById(id)
     }
 
+    fun markReminderCompleted(id: Long, reason: String = "DISMISSED") {
+        viewModelScope.launch {
+            reminderRepository.markAsCompleted(id, true, System.currentTimeMillis(), reason)
+        }
+    }
+
     fun markAsCompleted(id: Long, isCompleted: Boolean, reason: String) {
         viewModelScope.launch {
             val reminder = reminderRepository.getReminderById(id)

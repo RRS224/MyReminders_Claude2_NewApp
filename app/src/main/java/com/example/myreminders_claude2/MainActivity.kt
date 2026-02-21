@@ -619,7 +619,7 @@ fun MainNavigation(
                         snoozeCount = reminder!!.snoozeCount,
                         onDismiss = {
                             scope.launch {
-                                viewModel.softDeleteReminder(reminder!!.id)
+                                viewModel.markReminderCompleted(reminder!!.id, "DISMISSED")
                                 navController.popBackStack()
                             }
                         },
