@@ -115,6 +115,9 @@ import androidx.compose.animation.fadeOut
 import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 
 class MainActivity : ComponentActivity() {
     private val viewModel: ReminderViewModel by viewModels()
@@ -189,6 +192,22 @@ fun MyRemindersApp(
         authViewModel.onSignOut = {
             viewModel.stopSync()
             hasSkippedSignIn = false  // ✅ Returns to SignIn screen after signing out
+        }
+    }
+
+    // Retry any failed Firestore uploads every time app comes to foreground.
+    // Samsung battery optimisation can kill upload coroutines mid-flight;
+    // this ensures reminders always make it to Firestore eventually.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.syncNow()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 

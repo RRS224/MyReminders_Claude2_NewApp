@@ -62,6 +62,15 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         syncManager.stopSync()
     }
 
+    /**
+     * Retry uploading any local reminders not yet in Firestore.
+     * Called every time the app comes to foreground to handle
+     * uploads killed by Samsung battery optimisation.
+     */
+    fun syncNow() {
+        syncManager.syncNow()
+    }
+
     // ===== REMINDER FLOWS =====
 
     val allActiveReminders = reminderRepository.allActiveReminders

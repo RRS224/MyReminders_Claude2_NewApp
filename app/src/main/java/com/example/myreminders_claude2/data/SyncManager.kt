@@ -72,6 +72,13 @@ class SyncManager(
         }
     }
 
+    fun syncNow() {
+        scope.launch {
+            syncLocalToCloud()
+            Log.d(TAG, "Foreground sync complete")
+        }
+    }
+
     fun stopSync() {
         Log.d(TAG, "Stopping sync")
         remindersListener?.remove()
