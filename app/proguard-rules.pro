@@ -1,21 +1,51 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ── Room ──────────────────────────────────────────────────────────────────────
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-keep @androidx.room.Dao class *
+-keepclassmembers class * extends androidx.room.RoomDatabase {
+    abstract *;
+}
+-dontwarn androidx.room.**
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# ── Kotlin Coroutines ─────────────────────────────────────────────────────────
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keepclassmembernames class kotlinx.** {
+    volatile <fields>;
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# ── Firebase / Firestore ──────────────────────────────────────────────────────
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.**
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# ── Firestore data models (must not be obfuscated) ────────────────────────────
+-keep class com.example.myreminders_claude2.data.FirestoreReminder { *; }
+-keep class com.example.myreminders_claude2.data.FirestoreCategory { *; }
+-keep class com.example.myreminders_claude2.data.FirestoreTemplate { *; }
+
+# ── Room entities and DAOs ────────────────────────────────────────────────────
+-keep class com.example.myreminders_claude2.data.Reminder { *; }
+-keep class com.example.myreminders_claude2.data.Category { *; }
+-keep class com.example.myreminders_claude2.data.Template { *; }
+-keep class com.example.myreminders_claude2.data.ReminderDao { *; }
+-keep class com.example.myreminders_claude2.data.CategoryDao { *; }
+-keep class com.example.myreminders_claude2.data.TemplateDao { *; }
+
+# ── ViewModels ────────────────────────────────────────────────────────────────
+-keep class com.example.myreminders_claude2.viewmodel.** { *; }
+
+# ── Alarm / BroadcastReceivers / Services ────────────────────────────────────
+-keep class com.example.myreminders_claude2.alarm.** { *; }
+
+# ── Gson (if used) ────────────────────────────────────────────────────────────
+-keepattributes Signature
+-keepattributes *Annotation*
+-dontwarn sun.misc.**
+
+# ── General Android ───────────────────────────────────────────────────────────
+-keepattributes SourceFile,LineNumberTable
+-keep public class * extends android.app.Activity
+-keep public class * extends android.app.Service
+-keep public class * extends android.content.BroadcastReceiver

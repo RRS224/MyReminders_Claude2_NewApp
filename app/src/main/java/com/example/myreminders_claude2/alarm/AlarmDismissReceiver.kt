@@ -26,12 +26,7 @@ class AlarmDismissReceiver : BroadcastReceiver() {
                 val reminder = reminderDao.getReminderByIdSync(reminderId)
 
                 // ✅ Dismissed reminders go to Done tab
-                reminderDao.markAsCompleted(
-                    reminderId = reminderId,
-                    isCompleted = true,
-                    completedAt = System.currentTimeMillis(),
-                    reason = "DISMISSED"
-                )
+                reminderDao.softDeleteReminder(reminderId, System.currentTimeMillis())
 
                 // ✅ Create next occurrence for recurring reminders
                 if (reminder != null &&
