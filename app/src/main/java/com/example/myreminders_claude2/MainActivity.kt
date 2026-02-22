@@ -115,12 +115,22 @@ import androidx.compose.animation.fadeOut
 import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.ui.platform.LocalLifecycleOwner
 
 class MainActivity : ComponentActivity() {
     private val viewModel: ReminderViewModel by viewModels()
+    // Observable state for navigating to alarm screen when app is already open
+    var pendingReminderId by mutableStateOf<Long?>(null)
+        private set
+
+    // ✅ Handle notification tap when app is already open (onNewIntent fires instead of onCreate)
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val reminderId = intent.getLongExtra("REMINDER_ID", -1)
+        if (reminderId != -1L) {
+            pendingReminderId = reminderId
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // ✅ Install splash screen BEFORE super.onCreate — required by the API
@@ -162,6 +172,8 @@ class MainActivity : ComponentActivity() {
                     MyRemindersApp(
                         viewModel = viewModel,
                         initialReminderId = if (reminderId != -1L) reminderId else null,
+                        pendingReminderId = pendingReminderId,
+                        onPendingReminderConsumed = { pendingReminderId = null },
                         onThemeChanged = { themeVersion++ }
                     )
                 }
@@ -174,6 +186,8 @@ class MainActivity : ComponentActivity() {
 fun MyRemindersApp(
     viewModel: ReminderViewModel,
     initialReminderId: Long? = null,
+    pendingReminderId: Long? = null,
+    onPendingReminderConsumed: () -> Unit = {},
     onThemeChanged: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -192,22 +206,6 @@ fun MyRemindersApp(
         authViewModel.onSignOut = {
             viewModel.stopSync()
             hasSkippedSignIn = false  // ✅ Returns to SignIn screen after signing out
-        }
-    }
-
-    // Retry any failed Firestore uploads every time app comes to foreground.
-    // Samsung battery optimisation can kill upload coroutines mid-flight;
-    // this ensures reminders always make it to Firestore eventually.
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.syncNow()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -254,15 +252,26 @@ fun MainNavigation(
     authViewModel: AuthViewModel,
     prefsManager: PreferencesManager,
     initialReminderId: Long?,
+    pendingReminderId: Long? = null,
+    onPendingReminderConsumed: () -> Unit = {},
     onThemeChanged: () -> Unit,
     onNavigateToSignIn: () -> Unit
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
 
+    // Handle notification tap from cold start
     LaunchedEffect(initialReminderId) {
         initialReminderId?.let { reminderId ->
             navController.navigate("alarm/$reminderId")
+        }
+    }
+
+    // ✅ Handle notification tap when app is already open (onNewIntent path)
+    LaunchedEffect(pendingReminderId) {
+        pendingReminderId?.let { reminderId ->
+            navController.navigate("alarm/$reminderId")
+            onPendingReminderConsumed()
         }
     }
 

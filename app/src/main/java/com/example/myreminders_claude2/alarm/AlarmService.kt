@@ -268,6 +268,21 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // ✅ Full screen intent — bypasses Samsung background start restrictions.
+        // On Samsung and other OEMs with aggressive battery optimisation, a normal
+        // contentIntent can be silently blocked when the app is in the background.
+        // CATEGORY_ALARM notifications with a fullScreenIntent are always allowed through.
+        val fullScreenIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("REMINDER_ID", reminderId)
+        }
+        val fullScreenPendingIntent = PendingIntent.getActivity(
+            this,
+            reminderId.toInt() + 3000000,
+            fullScreenIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(displayTitle)
@@ -276,6 +291,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openPendingIntent)
+            .setFullScreenIntent(fullScreenPendingIntent, true)
             .setAutoCancel(false)
             .setOngoing(true)
             .setShowWhen(true)

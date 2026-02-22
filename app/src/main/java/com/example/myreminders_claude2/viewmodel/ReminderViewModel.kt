@@ -21,6 +21,7 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
 
     // Initialize SyncManager
     private val syncManager = SyncManager(
+        context = application,
         firestore = FirebaseFirestore.getInstance(),
         auth = FirebaseAuth.getInstance(),
         reminderDao = database.reminderDao(),
@@ -60,15 +61,6 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
      */
     fun stopSync() {
         syncManager.stopSync()
-    }
-
-    /**
-     * Retry uploading any local reminders not yet in Firestore.
-     * Called every time the app comes to foreground to handle
-     * uploads killed by Samsung battery optimisation.
-     */
-    fun syncNow() {
-        syncManager.syncNow()
     }
 
     // ===== REMINDER FLOWS =====

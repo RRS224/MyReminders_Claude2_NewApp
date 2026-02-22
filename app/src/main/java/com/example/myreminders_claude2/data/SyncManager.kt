@@ -1,6 +1,8 @@
 package com.example.myreminders_claude2.data
 
+import android.content.Context
 import android.util.Log
+import com.example.myreminders_claude2.alarm.AlarmScheduler
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentChange
@@ -11,6 +13,7 @@ import kotlinx.coroutines.tasks.await
 import java.util.*
 
 class SyncManager(
+    private val context: Context,
     private val firestore: FirebaseFirestore,
     private val auth: FirebaseAuth,
     private val reminderDao: ReminderDao,
@@ -69,13 +72,6 @@ class SyncManager(
             Log.d(TAG, "Cloud fetch complete: ${snapshot.size()} reminders")
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching from cloud", e)
-        }
-    }
-
-    fun syncNow() {
-        scope.launch {
-            syncLocalToCloud()
-            Log.d(TAG, "Foreground sync complete")
         }
     }
 
@@ -236,8 +232,17 @@ class SyncManager(
         if (existing == null) {
             // Restore to Room regardless of isDeleted/isCompleted status
             // This ensures Done and Missed reminders are restored on fresh install
-            reminderDao.insertReminder(localReminder)
+            val insertedId = reminderDao.insertReminder(localReminder)
             Log.d(TAG, "Downloaded reminder: ${localReminder.title} (isDeleted=${localReminder.isDeleted}, isCompleted=${localReminder.isCompleted})")
+
+            // ✅ Schedule alarm for active future reminders restored on fresh install
+            val restoredReminder = localReminder.copy(id = insertedId)
+            if (!restoredReminder.isDeleted &&
+                !restoredReminder.isCompleted &&
+                restoredReminder.dateTime > System.currentTimeMillis()) {
+                AlarmScheduler(context).scheduleAlarm(restoredReminder)
+                Log.d(TAG, "Rescheduled alarm for restored reminder: ${restoredReminder.title}")
+            }
         } else {
             if (localReminder.updatedAt > existing.updatedAt) {
                 reminderDao.updateReminder(localReminder)
