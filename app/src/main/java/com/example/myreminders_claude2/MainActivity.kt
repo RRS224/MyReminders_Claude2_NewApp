@@ -4,7 +4,9 @@ package com.example.myreminders_claude2
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import android.os.PowerManager
 import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.example.myreminders_claude2.utils.OEMHelper
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -118,19 +120,6 @@ import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
     private val viewModel: ReminderViewModel by viewModels()
-    // Observable state for navigating to alarm screen when app is already open
-    var pendingReminderId by mutableStateOf<Long?>(null)
-        private set
-
-    // ✅ Handle notification tap when app is already open (onNewIntent fires instead of onCreate)
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        val reminderId = intent.getLongExtra("REMINDER_ID", -1)
-        if (reminderId != -1L) {
-            pendingReminderId = reminderId
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // ✅ Install splash screen BEFORE super.onCreate — required by the API
@@ -172,8 +161,6 @@ class MainActivity : ComponentActivity() {
                     MyRemindersApp(
                         viewModel = viewModel,
                         initialReminderId = if (reminderId != -1L) reminderId else null,
-                        pendingReminderId = pendingReminderId,
-                        onPendingReminderConsumed = { pendingReminderId = null },
                         onThemeChanged = { themeVersion++ }
                     )
                 }
@@ -186,8 +173,6 @@ class MainActivity : ComponentActivity() {
 fun MyRemindersApp(
     viewModel: ReminderViewModel,
     initialReminderId: Long? = null,
-    pendingReminderId: Long? = null,
-    onPendingReminderConsumed: () -> Unit = {},
     onThemeChanged: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -252,26 +237,15 @@ fun MainNavigation(
     authViewModel: AuthViewModel,
     prefsManager: PreferencesManager,
     initialReminderId: Long?,
-    pendingReminderId: Long? = null,
-    onPendingReminderConsumed: () -> Unit = {},
     onThemeChanged: () -> Unit,
     onNavigateToSignIn: () -> Unit
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
 
-    // Handle notification tap from cold start
     LaunchedEffect(initialReminderId) {
         initialReminderId?.let { reminderId ->
             navController.navigate("alarm/$reminderId")
-        }
-    }
-
-    // ✅ Handle notification tap when app is already open (onNewIntent path)
-    LaunchedEffect(pendingReminderId) {
-        pendingReminderId?.let { reminderId ->
-            navController.navigate("alarm/$reminderId")
-            onPendingReminderConsumed()
         }
     }
 
@@ -545,7 +519,8 @@ fun MainNavigation(
                 onThemeChanged = onThemeChanged,
                 onNavigateToManageCategories = { navController.navigate("manageCategories") },
                 onNavigateToManageTemplates = { navController.navigate("manageTemplates") },
-                onNavigateToPermissions = { navController.navigate("permissions") }
+                onNavigateToPermissions = { navController.navigate("permissions") },
+                prefsManager = prefsManager
             )
         }
         composable("manageCategories",
@@ -1453,6 +1428,34 @@ fun HomeScreen(
         context.getSharedPreferences("celebration_prefs", Context.MODE_PRIVATE)
     }
 
+    // ── Battery optimisation card state ──────────────────────────────────────
+    val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
+    val manufacturer = remember { OEMHelper.getManufacturer() }
+    val isAggressiveOEM = remember {
+        manufacturer in listOf(
+            OEMHelper.Manufacturer.SAMSUNG,
+            OEMHelper.Manufacturer.XIAOMI,
+            OEMHelper.Manufacturer.OPPO,
+            OEMHelper.Manufacturer.VIVO,
+            OEMHelper.Manufacturer.HUAWEI,
+            OEMHelper.Manufacturer.ONEPLUS,
+            OEMHelper.Manufacturer.REALME
+        )
+    }
+    var isBatteryOptimized by remember {
+        mutableStateOf(!powerManager.isIgnoringBatteryOptimizations(context.packageName))
+    }
+    var batteryCardDismissed by remember { mutableStateOf(prefsManager.hasDismissedBatteryCard) }
+    val showBatteryCard = isAggressiveOEM && isBatteryOptimized && !batteryCardDismissed
+
+    val batterySettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        // Re-check after returning from battery settings
+        isBatteryOptimized = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -1794,6 +1797,79 @@ fun HomeScreen(
                             }
 
                             Column(modifier = Modifier.fillMaxSize()) {
+
+                                // ── Samsung / OEM battery optimisation warning card ──
+                                if (showBatteryCard) {
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.errorContainer
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Warning,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.padding(end = 8.dp)
+                                                )
+                                                Text(
+                                                    text = "Alarms may be unreliable",
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.padding(4.dp))
+                                            Text(
+                                                text = "${OEMHelper.getManufacturerName()} devices restrict background apps. " +
+                                                    "Disable battery optimisation for My Reminders to ensure alarms fire reliably.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                            Spacer(modifier = Modifier.padding(8.dp))
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Button(
+                                                    onClick = {
+                                                        val intent = android.content.Intent(
+                                                            android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                                            android.net.Uri.parse("package:${context.packageName}")
+                                                        )
+                                                        batterySettingsLauncher.launch(intent)
+                                                    },
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = MaterialTheme.colorScheme.error
+                                                    )
+                                                ) {
+                                                    Text("Fix Now")
+                                                }
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        // ✅ Log to Crashlytics so we know how many users skip this
+                                                        FirebaseCrashlytics.getInstance().log(
+                                                            "Battery optimisation card dismissed without fixing — " +
+                                                            "Manufacturer: ${OEMHelper.getManufacturerName()}, " +
+                                                            "Model: ${android.os.Build.MODEL}"
+                                                        )
+                                                        FirebaseCrashlytics.getInstance().recordException(
+                                                            Exception("BatteryOptimisationSkipped: ${OEMHelper.getManufacturerName()} ${android.os.Build.MODEL}")
+                                                        )
+                                                        prefsManager.hasDismissedBatteryCard = true
+                                                        batteryCardDismissed = true
+                                                    }
+                                                ) {
+                                                    Text("Don't show again")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                // ────────────────────────────────────────────────────
+
                                 // Search bar
                                 OutlinedTextField(
                                     value = searchQuery,

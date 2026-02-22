@@ -14,12 +14,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.example.myreminders_claude2.utils.OEMHelper
+import com.example.myreminders_claude2.utils.PreferencesManager
 import com.example.myreminders_claude2.utils.ThemePreferences
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
+    prefsManager: PreferencesManager? = null,
     onThemeChanged: () -> Unit,
     onNavigateToManageCategories: () -> Unit = {},
     onNavigateToManageTemplates: () -> Unit = {},
@@ -37,6 +48,29 @@ fun SettingsScreen(
 
     var showStartTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker by remember { mutableStateOf(false) }
+
+    val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
+    var isBatteryOptimized by remember {
+        mutableStateOf(!powerManager.isIgnoringBatteryOptimizations(context.packageName))
+    }
+    val manufacturer = remember { OEMHelper.getManufacturer() }
+    val isAggressiveOEM = remember {
+        manufacturer in listOf(
+            OEMHelper.Manufacturer.SAMSUNG, OEMHelper.Manufacturer.XIAOMI,
+            OEMHelper.Manufacturer.OPPO, OEMHelper.Manufacturer.VIVO,
+            OEMHelper.Manufacturer.HUAWEI, OEMHelper.Manufacturer.ONEPLUS,
+            OEMHelper.Manufacturer.REALME
+        )
+    }
+    val batterySettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        isBatteryOptimized = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        // If user fixed it, reset the dismissed flag so card reappears if it breaks again
+        if (!isBatteryOptimized) {
+            prefsManager?.hasDismissedBatteryCard = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -106,6 +140,79 @@ fun SettingsScreen(
                     )
                 }
             }
+
+            // ── Battery Optimisation Card (shown when still optimized) ──────────
+            if (isAggressiveOEM) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isBatteryOptimized)
+                            MaterialTheme.colorScheme.errorContainer
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (isBatteryOptimized) "⚠️" else "✅",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text(
+                                text = "Battery Optimisation",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.padding(4.dp))
+                        Text(
+                            text = if (isBatteryOptimized)
+                                "${OEMHelper.getManufacturerName()} is restricting My Reminders in the background. " +
+                                "Tap below to disable optimisation and ensure alarms fire reliably."
+                            else
+                                "Battery optimisation is disabled for My Reminders. Alarms should fire reliably.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isBatteryOptimized)
+                                MaterialTheme.colorScheme.onErrorContainer
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (isBatteryOptimized) {
+                            Spacer(modifier = Modifier.padding(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = {
+                                        val intent = Intent(
+                                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                            Uri.parse("package:${context.packageName}")
+                                        )
+                                        batterySettingsLauncher.launch(intent)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error
+                                    )
+                                ) {
+                                    Text("Fix Now")
+                                }
+                                // Reset "don't show again" so home screen card reappears
+                                OutlinedButton(
+                                    onClick = {
+                                        FirebaseCrashlytics.getInstance().log(
+                                            "Battery opt skipped from Settings — " +
+                                            "${OEMHelper.getManufacturerName()} ${android.os.Build.MODEL}"
+                                        )
+                                        prefsManager?.hasDismissedBatteryCard = false
+                                    }
+                                ) {
+                                    Text("Remind me on home screen")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
 
             HorizontalDivider()
 

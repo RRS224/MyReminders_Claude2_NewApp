@@ -13,6 +13,7 @@ class PreferencesManager(context: Context) {
     companion object {
         private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
         private const val KEY_PERMISSIONS_SKIPPED = "permissions_skipped"
+        private const val KEY_BATTERY_CARD_DISMISSED = "battery_card_dismissed"
     }
 
     var hasCompletedOnboarding: Boolean
@@ -22,6 +23,10 @@ class PreferencesManager(context: Context) {
     var hasSkippedPermissions: Boolean
         get() = prefs.getBoolean(KEY_PERMISSIONS_SKIPPED, false)
         set(value) = prefs.edit().putBoolean(KEY_PERMISSIONS_SKIPPED, value).apply()
+
+    var hasDismissedBatteryCard: Boolean
+        get() = prefs.getBoolean(KEY_BATTERY_CARD_DISMISSED, false)
+        set(value) = prefs.edit().putBoolean(KEY_BATTERY_CARD_DISMISSED, value).apply()
 
     fun resetOnboarding() {
         prefs.edit()
