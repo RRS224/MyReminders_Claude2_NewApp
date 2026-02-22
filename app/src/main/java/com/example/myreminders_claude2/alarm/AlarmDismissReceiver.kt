@@ -6,6 +6,9 @@ import android.content.Intent
 import android.util.Log
 import com.example.myreminders_claude2.data.RecurrenceType
 import com.example.myreminders_claude2.data.ReminderDatabase
+import com.example.myreminders_claude2.data.SyncManager
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -27,6 +30,17 @@ class AlarmDismissReceiver : BroadcastReceiver() {
 
                 // ✅ Dismissed reminders go to Done tab
                 reminderDao.softDeleteReminder(reminderId, System.currentTimeMillis())
+
+                // ✅ P1 #9: Sync to Firestore — direct DAO calls bypass SyncManager
+                val syncManager = SyncManager(
+                    context = context,
+                    firestore = FirebaseFirestore.getInstance(),
+                    auth = FirebaseAuth.getInstance(),
+                    reminderDao = reminderDao,
+                    categoryDao = database.categoryDao(),
+                    templateDao = database.templateDao()
+                )
+                reminderDao.getReminderByIdSync(reminderId)?.let { syncManager.uploadReminder(it) }
 
                 // ✅ Create next occurrence for recurring reminders
                 if (reminder != null &&

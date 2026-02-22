@@ -16,6 +16,9 @@ class AlarmScheduler(private val context: Context) {
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     private val TAG = "AlarmScheduler"
 
+    // ✅ P1 #5: Safe Long→Int for PendingIntent request codes — avoids collision from truncation
+    private fun Long.toRequestCode(): Int = (this and 0x7FFFFFFF).toInt()
+
     fun scheduleAlarm(reminder: Reminder) {
         val dateFormat = SimpleDateFormat("MMM dd, yyyy hh:mm:ss a", Locale.getDefault())
         Log.d(TAG, "=== SCHEDULING ALARM ===")
@@ -38,7 +41,7 @@ class AlarmScheduler(private val context: Context) {
 
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            reminder.id.toInt(),
+            reminder.id.toRequestCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -50,7 +53,7 @@ class AlarmScheduler(private val context: Context) {
         }
         val showPendingIntent = PendingIntent.getActivity(
             context,
-            reminder.id.toInt(),
+            reminder.id.toRequestCode(),
             showIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -75,7 +78,7 @@ class AlarmScheduler(private val context: Context) {
         val intent = Intent(context, AlarmReceiver::class.java)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            reminderId.toInt(),
+            reminderId.toRequestCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -107,7 +110,7 @@ class AlarmScheduler(private val context: Context) {
 
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            reminderId.toInt(),
+            reminderId.toRequestCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -118,7 +121,7 @@ class AlarmScheduler(private val context: Context) {
         }
         val showPendingIntent = PendingIntent.getActivity(
             context,
-            reminderId.toInt(),
+            reminderId.toRequestCode(),
             showIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

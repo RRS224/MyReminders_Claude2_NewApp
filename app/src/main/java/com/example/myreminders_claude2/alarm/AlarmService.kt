@@ -22,6 +22,9 @@ import androidx.core.app.NotificationCompat
 import com.example.myreminders_claude2.MainActivity
 import com.example.myreminders_claude2.R
 import com.example.myreminders_claude2.data.ReminderDatabase
+import com.example.myreminders_claude2.data.SyncManager
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,6 +40,11 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
     private var currentReminderId: Long = -1
     private var currentSnoozeCount: Int = 0
     private val handler: Handler = Handler(Looper.getMainLooper())
+    // ✅ P1 #9: Prevent race condition if dismiss fires from two paths simultaneously
+    private val isDismissing = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    // ✅ P1 #5 & #8: Safe Long→Int conversion for notification IDs and request codes
+    private fun Long.toSafeInt(): Int = (this and 0x7FFFFFFF).toInt()
 
     companion object {
         const val CHANNEL_ID = "reminder_alarm_channel"
@@ -95,7 +103,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
 
                 // ✅ Show "Second Reminder" / "Third Reminder" in notification
                 val notification = createNotification(title, notes, currentReminderId, currentSnoozeCount)
-                startForeground(NOTIFICATION_ID, notification)
+                startForeground(currentReminderId.toSafeInt(), notification)  // ✅ P1 #8: unique ID per reminder
 
                 playAlarmSound()
                 startVibration()
@@ -149,14 +157,31 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun handleDismiss(isManual: Boolean) {
+        // ✅ P1 #9: Prevent double-dismiss race condition
+        if (!isDismissing.compareAndSet(false, true)) {
+            android.util.Log.w("AlarmService", "handleDismiss already in progress — ignoring duplicate call")
+            return
+        }
         CoroutineScope(Dispatchers.IO).launch {
             val database = ReminderDatabase.getDatabase(applicationContext)
             val completedAt: Long = System.currentTimeMillis()
             val dismissalReason: String = if (isManual) "MANUAL" else "AUTO_SNOOZED"
 
             if (isManual) {
-                // ✅ Manually dismissed → goes to Completed tab
+                // ✅ Manually dismissed → goes to Done tab
                 database.reminderDao().softDeleteReminder(currentReminderId, completedAt)
+                // ✅ P1 #9: Sync deletion to Firestore (DAO-direct calls bypass SyncManager)
+                val syncManager = SyncManager(
+                    context = applicationContext,
+                    firestore = FirebaseFirestore.getInstance(),
+                    auth = FirebaseAuth.getInstance(),
+                    reminderDao = database.reminderDao(),
+                    categoryDao = database.categoryDao(),
+                    templateDao = database.templateDao()
+                )
+                database.reminderDao().getReminderByIdSync(currentReminderId)?.let {
+                    syncManager.uploadReminder(it)
+                }
             } else {
                 // ✅ Unattended (rang 3 times, ignored) → goes to Missed tab
                 database.reminderDao().markAsCompleted(
@@ -239,7 +264,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         }
         val snoozePendingIntent = PendingIntent.getBroadcast(
             this,
-            reminderId.toInt(),
+            reminderId.toSafeInt(),  // ✅ P1 #5: safe Long→Int
             snoozeIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -251,7 +276,7 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         }
         val dismissPendingIntent = PendingIntent.getBroadcast(
             this,
-            reminderId.toInt() + 1000000,
+            reminderId.toSafeInt() + 1000000,  // ✅ P1 #5
             dismissIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -263,23 +288,8 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         }
         val openPendingIntent = PendingIntent.getActivity(
             this,
-            reminderId.toInt() + 2000000,
+            reminderId.toSafeInt() + 2000000,  // ✅ P1 #5
             openIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // ✅ Full screen intent — bypasses Samsung background start restrictions.
-        // On Samsung and other OEMs with aggressive battery optimisation, a normal
-        // contentIntent can be silently blocked when the app is in the background.
-        // CATEGORY_ALARM notifications with a fullScreenIntent are always allowed through.
-        val fullScreenIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("REMINDER_ID", reminderId)
-        }
-        val fullScreenPendingIntent = PendingIntent.getActivity(
-            this,
-            reminderId.toInt() + 3000000,
-            fullScreenIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -291,7 +301,6 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(openPendingIntent)
-            .setFullScreenIntent(fullScreenPendingIntent, true)
             .setAutoCancel(false)
             .setOngoing(true)
             .setShowWhen(true)
